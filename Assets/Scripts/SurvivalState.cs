@@ -31,6 +31,7 @@ namespace VanishingDays
     [Serializable] public class StoryFlags
     {
         public bool OpeningCompleted, HasRadio, HasHeardSPBroadcast, DongrimRescueCompleted, HasMetDongrim, HasMetJiwoo, JoinedLiberationFront, HasMetSeokhyeon;
+        public bool SupplyRumorUnlocked, SupplySiteVisited, CrowdIncidentStarted, CrowdIncidentResolved, DongrimContactHintReceived;
         public bool CanReceiveSPBroadcast => HasRadio;
         // No automatic trigger: an approved, independent crowd-rescue condition must be supplied later.
         public bool CanTriggerDongrimFirstEncounter(bool approvedCrowdRescueCondition) => HasRadio && approvedCrowdRescueCondition && !DongrimRescueCompleted && !HasMetDongrim;
@@ -38,9 +39,9 @@ namespace VanishingDays
     }
     [Serializable] public class LocationProgress { public string id; public int searches; public Inventory remaining=new Inventory(); }
     [Serializable] public class Encounter { public string kind, context; }
-    [Serializable] public class SurvivalState
+    [Serializable] public partial class SurvivalState
     {
-        public int schemaVersion=3;
+        public int schemaVersion=4;
         public string PlayerNickname="", ProtagonistScriptName="안재현";
         public GameDifficulty Difficulty=GameDifficulty.NORMAL;
         public int day=1, hour=8;
@@ -59,7 +60,7 @@ namespace VanishingDays
         public bool IsGameOver => Vitals.CurrentHP<=0;
         public DateTime CalendarDate => new DateTime(2031,2,26).AddDays(day-1);
         public bool IsNight(SurvivalBalance balance) => hour<balance.dayStarts || hour>=balance.nightStarts;
-        public bool CanAct => !IsGameOver && PendingEncounter==null;
+        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident;
         public bool CanUseRadio => Story.HasRadio && (Backpack.Count("radio")>0 || (CurrentLocation=="home" && HomeStorage.Count("radio")>0));
         public static SurvivalState NewGame(GameDifficulty difficulty,SurvivalDefinitions definitions,uint seed=0)
         {
@@ -106,7 +107,7 @@ namespace VanishingDays
         }
         public void AdvanceTime(int hours,SurvivalDefinitions data,bool resting=false)
         {
-            if(IsGameOver || hours<=0) return;
+            if(IsGameOver || HasActiveCrowdIncident || hours<=0) return;
             var b=data.TEMP_BALANCE;
             if(!resting) InjuryRestProgress=0;
             for(int i=0;i<hours && !IsGameOver;i++)
@@ -136,12 +137,13 @@ namespace VanishingDays
         }
         public string Travel(string destination,SurvivalDefinitions data,Func<double> random=null)
         {
-            if(!CanAct || destination==CurrentLocation || data.Location(destination)==null) return "지금은 이동할 수 없다.";
+            if(!CanAct || destination==CurrentLocation || !IsLocationUnlocked(destination,data)) return "지금은 이동할 수 없다.";
             bool returning=destination=="home";
             int cost=returning?data.Location(CurrentLocation).travelHours:data.Location(destination).travelHours;
             if(CurrentLocation=="home") AwayFromHome=true;
             AdvanceTime(cost,data); if(IsGameOver) { AwayFromHome=CurrentLocation!="home"; return Report("돌아갈 힘이 남지 않았다."); }
             CurrentLocation=destination;
+            if(destination=="supply_site") Story.SupplySiteVisited=true;
             Report(data.Location(destination).name+"에 도착했다. "+(IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
             CheckEncounter(false,data,random);
             if(returning)
@@ -153,7 +155,7 @@ namespace VanishingDays
         }
         public string Search(SurvivalDefinitions data,Func<double> random=null)
         {
-            if(!CanAct || CurrentLocation=="home") return "지금은 수색할 수 없다.";
+            if(!CanAct || CurrentLocation=="home" || data.Location(CurrentLocation).storyOnly) return "지금은 수색할 수 없다.";
             var location=data.Location(CurrentLocation); var progress=Locations.Find(x=>x.id==CurrentLocation);
             AdvanceTime(location.searchHours,data); if(IsGameOver) return Report("수색을 계속할 힘이 없다.");
             progress.searches++; var found=new List<string>();
@@ -247,9 +249,13 @@ namespace VanishingDays
         }
         public string ListenRadio(SurvivalDefinitions data)
         {
-            if(!CanAct || !CanUseRadio) return "지금 사용할 수 있는 라디오가 없다.";
-            if(string.IsNullOrWhiteSpace(data.approvedSPBroadcast)) return Report("라디오를 켰다. 지금은 수신되는 방송이 없다.");
-            Story.HasHeardSPBroadcast=true; return Report(data.approvedSPBroadcast);
+            if(!CanAct || !CanUseRadio || CurrentLocation!="home") return "라디오를 챙겨 집에서 방송을 들을 수 있다.";
+            bool first=!Story.SupplyRumorUnlocked;
+            var broadcast=first?data.radioStory.firstBroadcast:data.radioStory.generalBroadcast;
+            LastRadioBroadcastId=broadcast.id;
+            Story.HasHeardSPBroadcast=true;
+            if(first) { Story.SupplyRumorUnlocked=true; Note(broadcast.title+"\n"+broadcast.body); return Report("[정보 카드] "+data.radioStory.clueCard); }
+            return Report(broadcast.title+"\n"+broadcast.body);
         }
         string Report(string text) { Note(text); return text; }
     }

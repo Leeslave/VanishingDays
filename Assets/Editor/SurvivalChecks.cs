@@ -48,7 +48,7 @@ namespace VanishingDays.Editor
                 require(initial.HomeStorage.Count("burner")==1 && initial.Backpack.Count("radio")+initial.HomeStorage.Count("radio")==0,"Initial burner/radio wrong.");
                 require(initial.HomeStorage.Count("bandage")==new[]{5,3,1}[i] && initial.Backpack.Count("bandage")==0,"Difficulty bandages wrong.");
                 require(initial.Vitals.CurrentHP==500 && initial.Vitals.BaseMaxHP==500 && initial.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==500,"Initial HP wrong.");
-                require(initial.CurrentLocation=="home" && initial.CalendarDate==new DateTime(2031,2,26) && initial.Locations.Count==4,"Initial home/date/locations wrong.");
+                require(initial.CurrentLocation=="home" && initial.CalendarDate==new DateTime(2031,2,26) && initial.Locations.FindAll(x=>initial.IsLocationUnlocked(x.id,data)).Count==4,"Initial home/date/locations wrong.");
             }
             var s=fresh(); s.Vitals.CurrentHP=200; s.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f });
             require(s.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==450 && s.Vitals.BaseMaxHP==500,"Recovery cap -10% example failed.");
@@ -74,8 +74,8 @@ namespace VanishingDays.Editor
             require(!s.Story.HasMetDongrim && !s.Story.HasHeardSPBroadcast,"Radio auto-triggered story.");
             s.Search(data,()=>1); require(s.Backpack.Count("radio")==1,"Radio awarded twice.");
             require(s.Story.CanReceiveSPBroadcast && !s.Story.CanTriggerDongrimFirstEncounter(false),"Radio story gates wrong.");
-            s.ListenRadio(data); require(!s.Story.HasHeardSPBroadcast,"Unwritten SP broadcast was fabricated.");
-            string original=data.approvedSPBroadcast; data.approvedSPBroadcast="검증용 방송"; s.ListenRadio(data); data.approvedSPBroadcast=original; require(s.Story.HasHeardSPBroadcast,"Approved broadcast did not set flag.");
+            s.ListenRadio(data); require(!s.Story.HasHeardSPBroadcast,"Radio first broadcast played outside home.");
+            s.Travel("home",data,()=>1); s.ListenRadio(data); require(s.Story.HasHeardSPBroadcast && s.Story.SupplyRumorUnlocked,"Approved broadcast did not set clue flag.");
             require(s.Story.CompleteDongrimRescue(true) && !s.Story.CompleteDongrimRescue(true),"Rescue completion not guarded/idempotent.");
             s=fresh(); require(!s.Story.CanReceiveSPBroadcast && !s.Story.CompleteDongrimRescue(true) && !s.Story.HasMetDongrim,"Radio prerequisite bypassed.");
             s=fresh(); s.Story.HasRadio=true; s.HomeStorage.Add("radio",1); s.Travel("store",data,()=>1); require(!s.CanUseRadio && s.Story.HasRadio,"Radio left at home could be used outside.");

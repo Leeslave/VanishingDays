@@ -112,10 +112,12 @@ namespace VanishingDays
             if(confirmRestart) { RestartPage(); return; }
             if(state.IsGameOver && page!="menu") { GameOver(); return; }
             if(state.PendingEncounter!=null) { EncounterPage(); return; }
+            if(state.HasActiveCrowdIncident) { CrowdIncidentPage(); return; }
             switch(page)
             {
                 case "map": Map(); break;
                 case "location": LocationDetails(); break;
+                case "radio": RadioPage(); break;
                 case "inventory": InventoryPage(); break;
                 case "kitchen": Kitchen(); break;
                 case "security": Security(); break;
@@ -166,11 +168,12 @@ namespace VanishingDays
             Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,820,150);
             Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
             Choice(1,"집에서 쉰다",definitions.TEMP_BALANCE.restHours+"시간 · 연속 "+definitions.TEMP_BALANCE.injuryRestHours+"시간마다 부상 1곳 회복",1122,()=>Apply(state.Rest(definitions)));
-            Choice(2,state.Story.HasRadio?"라디오를 켠다":"정비와 보안",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"집의 침입 저항과 외부 주목도를 확인한다",1234,()=>{if(state.Story.HasRadio) Apply(state.ListenRadio(definitions)); else {page="security"; message=""; Render();}});
+            Choice(2,state.Story.HasRadio?"라디오를 켠다":"정비와 보안",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"집의 침입 저항과 외부 주목도를 확인한다",1234,()=>{if(state.Story.HasRadio) OpenRadio(); else {page="security"; message=""; Render();}});
         }
         void Explore()
         {
             var location=definitions.Location(state.CurrentLocation);
+            if(location.storyOnly) { SupplySitePage(); return; }
             Hero(location.name); Paragraph(string.IsNullOrEmpty(message)?location.description:message,790,180);
             Choice(0,"주변을 수색한다",location.searchHours+"시간 · 안쪽에도 다른 사람이 있을 수 있다",1010,()=>Apply(state.Search(definitions)));
             Choice(1,"소지 물품을 확인한다","식량과 도구를 정리한다",1122,()=>{page="inventory"; Render();});
@@ -181,21 +184,21 @@ namespace VanishingDays
             Label("송파구 일대",48,462,804,60,36,Paper);
             Label("장소를 눌러 정보를 확인하세요.  /  약도",48,528,804,38,24,Muted);
             var map=Rect("Neighborhood map",root,48,586,804,690).gameObject.AddComponent<NeighborhoodMapGraphic>();
-            map.CurrentLocation=state.CurrentLocation; map.raycastTarget=false;
-            foreach(var location in definitions.locations)
+            map.CurrentLocation=state.CurrentLocation; map.SupplyRumorUnlocked=state.Story.SupplyRumorUnlocked; map.raycastTarget=false;
+            foreach(var location in definitions.locations.Where(x=>state.IsLocationUnlocked(x.id,definitions)))
             {
                 Vector2 p=NeighborhoodMapGraphic.Position(location.id); float x=48+p.x*804,y=586+p.y*690;
                 bool current=location.id==state.CurrentLocation;
                 var hit=Box("지도:"+location.id,x-100,y-44,200,116,Color.clear); hit.GetComponent<Image>().raycastTarget=true;
                 var button=hit.gameObject.AddComponent<Button>(); button.targetGraphic=hit.GetComponent<Image>(); button.onClick.AddListener(()=>SelectLocation(location.id));
                 Box("Map label",x-100,y+40,200,38,Ink);
-                var label=Label(location.name,x-100,y+43,200,34,25,current?Amber:Paper); label.alignment=TextAnchor.MiddleCenter;
+                var label=Label(string.IsNullOrEmpty(location.mapLabel)?location.name:location.mapLabel,x-100,y+43,200,34,25,current?Amber:Paper); label.alignment=TextAnchor.MiddleCenter;
                 if(current) { var here=Label("현재 위치",x-100,y+80,200,30,20,Amber); here.alignment=TextAnchor.MiddleCenter; }
             }
             Label("● 현재 위치   ○ 탐색 가능한 장소",48,1296,804,36,23,Amber);
             Label("장소 선택 → 위치 정보 → 이동하기",48,1346,804,36,24,Muted);
         }
-        void SelectLocation(string id) { if(!state.CanAct) return; selectedLocation=id; page="location"; message=""; Render(); }
+        void SelectLocation(string id) { if(!state.CanAct || !state.IsLocationUnlocked(id,definitions)) return; selectedLocation=id; page="location"; message=""; Render(); }
         void LocationDetails()
         {
             var location=definitions.Location(selectedLocation); bool current=location.id==state.CurrentLocation;
@@ -206,7 +209,7 @@ namespace VanishingDays
             Paragraph(location.description,624,230,28);
             Label(current?"지금 이곳에 머무르고 있다.":"이동 "+hours+"시간  ·  "+arrival.ToString("MM.dd HH:mm")+" 도착 예정",48,882,804,48,27,Amber);
             string risk=night?"밤에는 만남이 드물지만 약탈꾼에게 발견되면 위험하다.":"낮에는 길거리나 건물 안에서 다른 생존자와 마주칠 수 있다.";
-            string resources=location.id=="home"?"요리 · 물자 보관 · 휴식 · 부상 치료":"수색 "+location.searchHours+"시간 / 회\n발견 가능: "+LootNames(location);
+            string resources=location.storyOnly?"확인되지 않은 제보 · 일반 파밍 불가\n낮에 현장을 살피고 접근 여부를 선택한다.":location.id=="home"?"요리 · 물자 보관 · 휴식 · 부상 치료":"수색 "+location.searchHours+"시간 / 회\n발견 가능: "+LootNames(location);
             Paragraph(resources+"\n\n"+risk,952,234,25);
             Button(current?"현재 위치":"이동하기",48,1212,804,76,()=>Apply(state.Travel(location.id,definitions)),!current && state.CanAct,true);
             Button("지도로 돌아가기",48,1310,390,70,()=>{page="map"; Render();});
@@ -217,6 +220,60 @@ namespace VanishingDays
             var names=new System.Collections.Generic.List<string>();
             foreach(var item in location.loot) names.Add(definitions.Item(item.id).name);
             return string.Join(" · ",names);
+        }
+        void OpenRadio()
+        {
+            bool available=state.CanAct && state.CurrentLocation=="home" && state.CanUseRadio;
+            Apply(state.ListenRadio(definitions),available?"radio":"home");
+        }
+        void RadioPage()
+        {
+            if(!state.Story.SupplyRumorUnlocked || !state.CanUseRadio || state.CurrentLocation!="home") { Home(); return; }
+            var script=definitions.radioStory;
+            var broadcast=state.LastRadioBroadcastId==script.firstBroadcast.id?script.firstBroadcast:script.generalBroadcast;
+            Label("라디오 수신 기록",48,462,804,56,36,Paper);
+            Label(broadcast.title,48,540,804,54,25,Amber);
+            Label("방송 본문 · 위아래로 스크롤",48,584,804,24,18,Muted);
+            Paragraph(broadcast.body,610,510,27);
+            Paragraph("[정보 카드]\n"+script.clueCard,1142,134,23);
+            Button("방송 기록 닫기",48,1310,390,70,()=>{page="home";message="";Render();},true,true);
+            Button("제보 장소 지도 보기",462,1310,390,70,()=>{page="map";message="";Render();});
+        }
+        void SupplySitePage()
+        {
+            var script=definitions.radioStory;
+            Label("제보 장소  /  현장 기록",48,462,804,48,26,Muted);
+            Label(definitions.Location("supply_site").name,48,532,804,64,36,Paper);
+            bool completed=state.Story.CrowdIncidentResolved, night=state.IsNight(definitions.TEMP_BALANCE);
+            string text=completed?script.completed:night?script.night:state.Crowd.Step==CrowdStoryStep.Observing?script.observe:script.approach;
+            Paragraph(text,622,350,28);
+            bool approach=state.CanApproachCrowd(definitions);
+            Choice(0,"한발 물러나 상황을 살핀다","입구와 인파의 움직임을 확인한다",1000,()=>Apply(state.ObserveSupplySite(definitions)),approach);
+            Choice(1,"배분 구역 가까이 간다",completed?"이미 현장을 확인했다":night?"현장 접근은 낮에 가능하다":"사람들이 모인 입구로 접근한다",1112,()=>Apply(state.ApproachCrowd(definitions)),approach);
+            Choice(2,"돌아간다","지도를 확인하고 다음 행선지를 정한다",1224,()=>{page="map";message="";Render();});
+        }
+        void CrowdIncidentPage()
+        {
+            var script=definitions.radioStory; string title,body;
+            switch(state.Crowd.Step)
+            {
+                case CrowdStoryStep.Panic: title="출구가 보이지 않는다"; body=script.panic; break;
+                case CrowdStoryStep.Rescue: title="좁은 통로"; body=script.rescue; break;
+                case CrowdStoryStep.Disappearance: title="사라진 골목"; body=script.disappearance; break;
+                default:title="최동림"; body=script.introduction; break;
+            }
+            Label("현장 기록",48,462,804,48,26,Muted); Label(title,48,532,804,64,40,Paper);
+            Paragraph(body,622,state.Crowd.Step==CrowdStoryStep.Panic?430:550,28);
+            if(state.Crowd.Step==CrowdStoryStep.Panic)
+            {
+                Choice(0,"가방을 놓고 몸을 틀어 빠져나온다","소지품 일부를 잃지만 부상을 피한다",1100,()=>Apply(state.ChooseCrowdResponse(true,definitions)));
+                Choice(1,"가방을 붙잡고 버틴다","물품을 지키지만 부상을 입는다",1220,()=>Apply(state.ChooseCrowdResponse(false,definitions)));
+            }
+            else
+            {
+                if(state.Crowd.Step==CrowdStoryStep.Rescue) Paragraph(state.Crowd.Consequence,1192,94,22);
+                Button(state.Crowd.Step==CrowdStoryStep.Introduction?"기록하고 계속한다":"다음",48,1310,804,70,()=>Apply(state.ContinueCrowdStory(definitions)),true,true);
+            }
         }
         void Kitchen()
         {
@@ -295,7 +352,7 @@ namespace VanishingDays
             Button("저장 기록 불러오기",462,890,390,84,Load,store.Exists);
             Button("기록 이어가기",48,1010,804,84,()=>{page="home";Render();});
             Button("새 기록 시작",48,1130,804,84,()=>{confirmRestart=true;Render();});
-            if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,()=>Apply(state.ListenRadio(definitions),"menu"),state.CanUseRadio);
+            if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,OpenRadio,state.CanUseRadio && state.CurrentLocation=="home");
         }
         void RestartPage()
         {
@@ -447,6 +504,43 @@ namespace VanishingDays
                 Save(); if(!store.TryLoad(out var resting,out _) || resting.InjuryRestProgress!=2) throw new InvalidOperationException("Rest progress save failed.");
                 Apply(state.Rest(definitions)); Apply(state.Rest(definitions)); if(state.Vitals.Injuries.Count!=0) throw new InvalidOperationException("Rest UI recovery failed.");
                 Debug.Log("VD_MEDICINE_MAP_UI_OK: map selection preserves time/location/RNG; explicit movement; medicine button; 6h rest; saved rest progress.");
+                state.hour=8; state.Vitals.Hunger=0; state.Vitals.HungerPenalty=0; page="home"; Render();
+                int radioHour=state.hour; uint radioRandom=state.RandomState;
+                ClickGameButton("라디오를 켠다");
+                if(page!="radio" || !state.Story.SupplyRumorUnlocked || state.Story.HasMetDongrim || state.hour!=radioHour || state.RandomState!=radioRandom) throw new InvalidOperationException("First radio UI failed/unexpected time or story progression.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"RADIO-FIRST.png"));
+                foreach(var scroll in root.GetComponentsInChildren<ScrollRect>()) if(scroll.content.rect.height>scroll.viewport.rect.height) scroll.verticalNormalizedPosition=0;
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"RADIO-FIRST-bottom.png"));
+                ClickGameButton("제보 장소 지도 보기");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MAP-RUMOR.png"));
+                ClickGameButton("지도:supply_site");
+                if(state.Story.SupplySiteVisited || state.hour!=radioHour || state.RandomState!=radioRandom) throw new InvalidOperationException("Rumor info selection mutated game.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SUPPLY-INFO.png"));
+                ClickGameButton("이동하기");
+                if(state.PendingEncounter!=null) Apply(state.ResolveEncounter(false,definitions));
+                if(!state.Story.SupplySiteVisited || state.Story.CrowdIncidentStarted || state.Story.HasMetDongrim) throw new InvalidOperationException("Site arrival auto-started story.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SUPPLY-APPROACH.png"));
+                ClickGameButton("한발 물러나");
+                Save(); if(!store.TryLoad(out var observing,out _) || observing.Crowd.Step!=CrowdStoryStep.Observing) throw new InvalidOperationException("Observation save failed.");
+                ClickGameButton("배분 구역 가까이");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"CROWD-PANIC.png"));
+                int beforeChoice=state.Backpack.Count("radio"); ClickGameButton("가방을 붙잡고");
+                if(state.Crowd.Step!=CrowdStoryStep.Rescue || state.Backpack.Count("radio")!=beforeChoice || !state.HasActiveCrowdIncident) throw new InvalidOperationException("Rescue UI choice failed.");
+                Save(); if(!store.TryLoad(out var rescue,out _) || rescue.Crowd.Step!=CrowdStoryStep.Rescue || rescue.Crowd.BagChoice!="hold") throw new InvalidOperationException("Rescue state restore failed.");
+                state=rescue; Render();
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"CROWD-RESCUE.png"));
+                ClickGameButton("다음");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"CROWD-DISAPPEARANCE.png"));
+                ClickGameButton("다음");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DONGRIM.png"));
+                ClickGameButton("기록하고 계속한다");
+                if(!state.CanAct || !state.Story.HasMetDongrim || !state.Story.CrowdIncidentResolved || state.Story.JoinedLiberationFront || state.Story.HasMetJiwoo || state.PlayerNickname!="기록자A1") throw new InvalidOperationException("Meeting completion/profile/scope failed.");
+                Apply(state.Travel("home",definitions,()=>1)); state.hour=18; Apply(state.Travel("supply_site",definitions,()=>1));
+                // A fresh story fixture verifies the alternate night-only presentation.
+                state.Story.CrowdIncidentStarted=false; state.Story.CrowdIncidentResolved=false; state.Story.HasMetDongrim=false; state.Story.DongrimRescueCompleted=false; state.Story.DongrimContactHintReceived=false; state.Crowd=new CrowdStoryProgress(); page="home"; Render();
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SUPPLY-NIGHT.png"));
+                foreach(var button in root.GetComponentsInChildren<Button>()) if(button.name.Contains("배분 구역 가까이") && button.interactable) throw new InvalidOperationException("Night approach button enabled.");
+                Debug.Log("VD_RADIO_STORY_UI_OK: home broadcast scroll, rumor card and map unlock, explicit travel, observation, panic/response, mid-rescue restore, disappearance, Dongrim meeting, free survival and night gate.");
                 yield return null; Debug.Log("VD_SURVIVAL_UI_OK: 9:16 HUD, 500 HP, cooking/eating buttons, storage, four places, school radio, delayed story gate, security, encounter choice, 450 cap and session save/load.");
                 Debug.Log("VD_OPENING_UI_OK: all screens, long-record scroll, disabled blank submit, Korean committed text, IME composition, nickname binding and main-game handoff.");
             }

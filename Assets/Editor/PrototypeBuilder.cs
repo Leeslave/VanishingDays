@@ -9,7 +9,7 @@ namespace VanishingDays.Editor
     public static class PrototypeBuilder
     {
         [MenuItem("Vanishing Days/Validate game rules")]
-        public static void Validate() { SurvivalChecks.Validate(); }
+        public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); }
 
         [MenuItem("Vanishing Days/Build Windows prototype")]
         public static void Build() { Build(false); }
