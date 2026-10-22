@@ -255,7 +255,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 802008111ed2c574280a12b054399281, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  startInShelter: 1
+  skipOpeningInEditor: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

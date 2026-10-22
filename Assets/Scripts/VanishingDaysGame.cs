@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -11,257 +12,461 @@ namespace VanishingDays
 {
     public class VanishingDaysGame : MonoBehaviour
     {
-        [SerializeField, Tooltip("Play 시 타이틀을 건너뛰고 첫날 은신처에서 시작합니다.")]
-        bool startInShelter;
+        [SerializeField, Tooltip("에디터 테스트 전용: 오프닝을 건너뜁니다.")]
+        bool skipOpeningInEditor;
+        OpeningScreenView openingView;
         static readonly Color Ink=new Color32(14,21,24,255), Panel=new Color32(22,30,32,255), Paper=new Color32(222,216,198,255), Muted=new Color32(144,153,148,255), Amber=new Color32(211,173,110,255);
         SurvivalState state;
+        SurvivalDefinitions definitions;
+        SessionSaveStore store;
         RectTransform root;
         Font font;
         Texture2D art;
-        string page="shelter", message="";
-        int selected=-1;
-        bool title=true, confirmRestart, readFinishedJournal;
+        string page="home", message="", selectedLocation="home";
+        bool confirmRestart;
         Action[] shortcuts=new Action[3];
-        string SavePath { get { return Path.Combine(Application.persistentDataPath,"vanishing-days-v1.json"); } }
+        string SavePath => store.Path;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Bootstrap()
-        {
-            if(FindFirstObjectByType<VanishingDaysGame>()==null) new GameObject("Vanishing Days").AddComponent<VanishingDaysGame>();
-        }
-
+        static void Bootstrap() { if(FindFirstObjectByType<VanishingDaysGame>()==null) new GameObject("Vanishing Days").AddComponent<VanishingDaysGame>(); }
         void Start()
         {
-            Application.targetFrameRate=60;
-            Application.runInBackground=true;
+            Application.targetFrameRate=60; Application.runInBackground=true;
+            definitions=SurvivalDefinitions.Load();
+            store=new SessionSaveStore(Path.Combine(Application.persistentDataPath,"vanishing-days-v03.json"),definitions);
             font=Font.CreateDynamicFontFromOSFont(new[]{"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans CJK KR","Arial"},20);
             if(font==null) font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             art=Resources.Load<Texture2D>("Art/SeoulErasure");
-            var canvas=new GameObject("Diary Interface",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));
-            canvas.transform.SetParent(transform,false);
+            var canvas=new GameObject("Diary Interface",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster)); canvas.transform.SetParent(transform,false);
             canvas.GetComponent<Canvas>().renderMode=RenderMode.ScreenSpaceOverlay;
             var scaler=canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(900,1600); scaler.screenMatchMode=CanvasScaler.ScreenMatchMode.Expand;
             canvas.gameObject.AddComponent<Image>().color=Ink;
-            root=Rect("Portrait viewport",canvas.transform,0,0,900,1600);
-            root.anchorMin=root.anchorMax=root.pivot=new Vector2(.5f,.5f);
+            root=Rect("Portrait viewport",canvas.transform,0,0,900,1600); root.anchorMin=root.anchorMax=root.pivot=new Vector2(.5f,.5f);
             if(FindFirstObjectByType<EventSystem>()==null) new GameObject("Event System",typeof(EventSystem),typeof(InputSystemUIInputModule));
-            state=SurvivalState.NewGame();
-            title=!startInShelter;
-            Render();
-            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSmoke")>=0) StartCoroutine(Smoke());
+            var module=EventSystem.current.currentInputModule??EventSystem.current.GetComponent<InputSystemUIInputModule>();
+            if(module!=null && module.inputOverride==null) module.inputOverride=EventSystem.current.gameObject.AddComponent<OpeningInputBridge>();
+            state=SurvivalState.NewGame(GameDifficulty.NORMAL,definitions);
+#if UNITY_EDITOR || VD_UI_VERIFICATION
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSmoke")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/SurvivalVerification/smoke-session.json"),definitions); BeginOpening(); StartCoroutine(Smoke()); return; }
+            if(skipOpeningInEditor) { state.Story.OpeningCompleted=true; Render(); return; }
+#endif
+            if(store.Exists) { page="continue"; Render(); } else BeginOpening();
         }
-
         void Update()
         {
-            var k=Keyboard.current; if(k==null || title) return;
-            if(k.digit1Key.wasPressedThisFrame) shortcuts[0]?.Invoke();
-            else if(k.digit2Key.wasPressedThisFrame) shortcuts[1]?.Invoke();
-            else if(k.digit3Key.wasPressedThisFrame) shortcuts[2]?.Invoke();
+            var keyboard=Keyboard.current; if(keyboard==null || openingView!=null) return;
+            if(keyboard.digit1Key.wasPressedThisFrame) shortcuts[0]?.Invoke();
+            else if(keyboard.digit2Key.wasPressedThisFrame) shortcuts[1]?.Invoke();
+            else if(keyboard.digit3Key.wasPressedThisFrame) shortcuts[2]?.Invoke();
         }
-
         RectTransform Rect(string name,Transform parent,float x,float y,float w,float h)
         {
             var go=new GameObject(name,typeof(RectTransform)); go.transform.SetParent(parent,false);
-            var r=go.GetComponent<RectTransform>(); r.anchorMin=r.anchorMax=new Vector2(0,1); r.pivot=new Vector2(0,1); r.anchoredPosition=new Vector2(x,-y); r.sizeDelta=new Vector2(w,h); return r;
+            var rect=go.GetComponent<RectTransform>(); rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(0,1); rect.anchoredPosition=new Vector2(x,-y); rect.sizeDelta=new Vector2(w,h); return rect;
         }
-        RectTransform Box(string name,float x,float y,float w,float h,Color color,Transform parent=null)
-        { var r=Rect(name,parent??root,x,y,w,h); var i=r.gameObject.AddComponent<Image>(); i.color=color; i.raycastTarget=false; return r; }
-        Text Label(string text,float x,float y,float w,float h,int size,Color color,Transform parent=null,FontStyle style=FontStyle.Normal)
+        RectTransform Box(string name,float x,float y,float w,float h,Color color,Transform parent=null) { var rect=Rect(name,parent??root,x,y,w,h); var image=rect.gameObject.AddComponent<Image>(); image.color=color; image.raycastTarget=false; return rect; }
+        Text Label(string text,float x,float y,float w,float h,int size,Color color,Transform parent=null)
         {
-            var r=Rect("Text",parent??root,x,y,w,h); var t=r.gameObject.AddComponent<Text>(); t.font=font; t.text=text; t.fontSize=size; t.fontStyle=style; t.color=color; t.supportRichText=true; t.raycastTarget=false; t.verticalOverflow=VerticalWrapMode.Truncate; t.horizontalOverflow=HorizontalWrapMode.Wrap; t.lineSpacing=1.18f; return t;
+            var rect=Rect("Text",parent??root,x,y,w,h); var label=rect.gameObject.AddComponent<Text>(); label.font=font; label.text=text; label.fontSize=size; label.color=color; label.supportRichText=false; label.raycastTarget=false; label.lineSpacing=1.18f; label.horizontalOverflow=HorizontalWrapMode.Wrap; label.verticalOverflow=VerticalWrapMode.Truncate; return label;
         }
-        void Button(string text,float x,float y,float w,float h,Action action,bool enabled=true,bool accent=false,Transform parent=null)
+        void Button(string text,float x,float y,float w,float h,Action click,bool enabled=true,bool accent=false,Transform parent=null)
         {
-            var r=Box("Button "+text,x,y,w,h,accent?new Color32(57,63,52,255):Panel,parent);
-            r.GetComponent<Image>().raycastTarget=true;
-            var b=r.gameObject.AddComponent<Button>(); b.targetGraphic=r.GetComponent<Image>(); b.interactable=enabled;
-            var colors=b.colors; colors.normalColor=Color.white; colors.highlightedColor=new Color(1.35f,1.3f,1.15f); colors.pressedColor=new Color(.75f,.7f,.6f); colors.disabledColor=new Color(.5f,.5f,.5f,.65f); b.colors=colors;
-            b.onClick.AddListener(()=>action());
-            Label(text,20,12,w-40,h-20,24,enabled?(accent?Amber:Paper):Muted,r);
-            Box("Rule",0,h-1,w,1,enabled?new Color32(71,81,76,255):Panel,r);
+            var rect=Box(text,x,y,w,h,accent?new Color32(57,63,52,255):Panel,parent); rect.GetComponent<Image>().raycastTarget=true;
+            var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=rect.GetComponent<Image>(); button.interactable=enabled;
+            var colors=button.colors; colors.highlightedColor=new Color(1.3f,1.25f,1.1f); colors.pressedColor=new Color(.75f,.7f,.6f); colors.disabledColor=new Color(.5f,.5f,.5f,.65f); button.colors=colors;
+            button.onClick.AddListener(()=>click());
+            Label(text,18,12,w-36,h-20,h<64?22:26,enabled?(accent?Amber:Paper):Muted,rect);
+            Box("Rule",0,h-1,w,1,new Color32(61,73,67,255),rect);
         }
-        void Picture(float x,float y,float w,float h,float alpha=1)
+        void Picture(float x,float y,float w,float h)
         {
-            var r=Rect("Seoul · concept art",root,x,y,w,h); var image=r.gameObject.AddComponent<RawImage>(); image.texture=art; image.color=new Color(1,1,1,alpha); image.raycastTarget=false;
-            if(art!=null) { float desired=w/h, actual=(float)art.width/art.height; image.uvRect=actual>desired?new UnityEngine.Rect((1-desired/actual)/2,0,desired/actual,1):new UnityEngine.Rect(0,(1-actual/desired)/2,1,actual/desired); }
+            var image=Rect("Seoul",root,x,y,w,h).gameObject.AddComponent<RawImage>(); image.texture=art; image.raycastTarget=false;
+            if(art!=null)
+            {
+                float desired=w/h, actual=art.width/(float)art.height;
+                image.uvRect=actual>desired?new UnityEngine.Rect((1-desired/actual)/2,0,desired/actual,1):new UnityEngine.Rect(0,(1-actual/desired)/2,1,actual/desired);
+            }
         }
-        void StoryBody(string text,float height=236,int size=28)
+        RectTransform ScrollArea(string name,float y,float height,out RectTransform content)
         {
-            var area=Box("Story scroll",48,774,804,height,Color.clear);
-            area.GetComponent<Image>().raycastTarget=true;
-            area.gameObject.AddComponent<RectMask2D>();
-            var content=Rect("Story content",area,0,0,804,height);
-            var label=Label(text,0,0,788,height,size,Paper,content);
-            float contentHeight=Mathf.Max(height,label.preferredHeight+12);
-            label.rectTransform.sizeDelta=new Vector2(788,contentHeight);
-            content.sizeDelta=new Vector2(804,contentHeight);
-            var scroll=area.gameObject.AddComponent<ScrollRect>(); scroll.content=content; scroll.viewport=area; scroll.horizontal=false; scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=40;
+            var area=Box(name,48,y,804,height,Panel); area.GetComponent<Image>().raycastTarget=true; area.gameObject.AddComponent<RectMask2D>();
+            content=Rect("Content",area,0,0,804,height);
+            var scroll=area.gameObject.AddComponent<ScrollRect>(); scroll.content=content; scroll.viewport=area; scroll.horizontal=false; scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=45; return area;
+        }
+        void Paragraph(string text,float y,float height,int size=27)
+        {
+            ScrollArea("Scrollable text",y,height,out var content);
+            var label=Label(text,18,12,768,height-24,size,Paper,content);
+            float h=Mathf.Max(height,label.preferredHeight+30); content.sizeDelta=new Vector2(804,h); label.rectTransform.sizeDelta=new Vector2(768,h-24);
+        }
+        void Clear()
+        {
+            foreach(Transform child in root) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
+            shortcuts=new Action[3]; Box("Background",0,0,900,1600,Ink);
         }
         void Render()
         {
-            foreach(Transform child in root) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            shortcuts=new Action[3];
-            Box("Background",0,0,900,1600,Ink);
-            if(title) { RenderTitle(); return; }
-            Header(); Sidebar();
+            Clear();
+            if(page=="continue") { ContinuePage(); return; }
+            Header(); Dock();
             if(confirmRestart) { RestartPage(); return; }
-            if(state.finished && !(readFinishedJournal && page=="journal")) { Ending(); return; }
-            if(page=="map") Map(); else if(page=="craft") Craft(); else if(page=="journal") Journal(); else if(page=="explore") Explore(); else Shelter();
-            Label("VANISHING DAYS  /  선택 1 · 2 · 3  /  자동 저장",48,1560,804,28,16,Muted);
-        }
-        void RenderTitle()
-        {
-            Picture(0,0,900,1600);
-            Box("Title panel",0,500,900,1100,new Color(0.035f,.055f,.065f,.90f));
-            Label("A RECORD OF THINGS THAT DISAPPEAR",64,550,772,40,19,Amber);
-            Box("Title rule",64,626,56,3,Amber);
-            Label("소멸일지",56,674,788,140,96,Paper);
-            Label("V A N I S H I N G   D A Y S",64,842,772,48,27,Muted);
-            Label("매일 자정, 도시의 일부가 사라진다.",64,948,772,64,32,Paper);
-            Label("남은 것을 모으고, 잃은 것을 만든다.\n그리고 사라지는 것들의 규칙을 기록한다.",64,1036,772,116,28,Muted);
-            Button("첫 번째 기록 시작하기     →",64,1220,772,88,()=>NewGame(),true,true);
-            Button("이전 일지 이어 읽기",64,1332,772,84,Load,File.Exists(SavePath));
-            Label("서울, 누군가의 옥탑방\n07 DAYS  /  08 PLACES  /  ONE DIARY",64,1490,772,80,20,Muted);
+            if(state.IsGameOver && page!="menu") { GameOver(); return; }
+            if(state.PendingEncounter!=null) { EncounterPage(); return; }
+            switch(page)
+            {
+                case "map": Map(); break;
+                case "location": LocationDetails(); break;
+                case "inventory": InventoryPage(); break;
+                case "kitchen": Kitchen(); break;
+                case "security": Security(); break;
+                case "journal": Journal(); break;
+                case "menu": Menu(); break;
+                default: if(state.CurrentLocation=="home") Home(); else Explore(); break;
+            }
+            Label("VANISHING DAYS  /  행동 후 자동 저장",48,1563,804,26,16,Muted);
         }
         void Header()
         {
-            Label("소멸일지",48,38,400,66,42,Paper);
-            Label("DAY "+state.day.ToString("00")+" / "+state.hour.ToString("00")+":00",564,48,288,48,30,Amber);
-            Box("Header rule",48,117,804,1,new Color32(63,73,71,255));
-            string[] values={"체력  "+state.health+" / 100","식량  "+state.food,"식수  "+state.water,"부품  "+state.scrap,"약품  "+state.medicine};
-            for(int i=0;i<values.Length;i++) Label(values[i],48+i*166,145,i==0?180:150,42,22,i==0&&state.health<30?new Color32(218,120,99,255):Paper);
-            string[] names={"은신처","도시 탐험","제작","관찰 일지"}; string[] ids={"shelter","map","craft","journal"};
-            for(int i=0;i<4;i++) { string id=ids[i]; Button(names[i],48+i*206,210,186,64,()=>{page=id; message=""; Render();},true,page==id); }
+            Label("소멸일지",48,28,420,60,40,Paper);
+            Label("DAY "+state.day.ToString("00"),650,36,202,48,30,Amber);
+            Label(state.CalendarDate.ToString("yyyy.MM.dd")+"  "+state.hour.ToString("00")+":00  ·  "+(state.IsNight(definitions.TEMP_BALANCE)?"밤":"낮")+"  ·  "+definitions.Location(state.CurrentLocation).name,48,102,804,40,24,Muted);
+            Label("체력  "+state.Vitals.CurrentHP+" / "+state.Vitals.BaseMaxHP,48,158,470,48,30,Paper);
+            int cap=state.Vitals.RecoverableMaxHP(definitions.TEMP_BALANCE);
+            Label("회복 상한  "+cap,538,166,314,40,25,Amber);
+            Box("HP blocked",48,226,804,20,new Color32(96,56,52,255));
+            Box("HP recoverable",48,226,804*(cap/(float)state.Vitals.BaseMaxHP),20,new Color32(55,68,62,255));
+            Box("Current HP",48,226,804*(Mathf.Min(state.Vitals.CurrentHP,cap)/(float)state.Vitals.BaseMaxHP),20,Amber);
+            string hunger=state.Vitals.Hunger>=definitions.TEMP_BALANCE.starvingAt?"심한 굶주림":state.Vitals.Hunger>=definitions.TEMP_BALANCE.hungryAt?"허기짐":"버틸 만함";
+            Label("허기 "+state.Vitals.Hunger+" · "+hunger+"  /  부상 "+state.Vitals.Injuries.Count,48,270,804,38,23,Muted);
+            Label("힘 "+state.Strength(definitions)+"  ·  방어 "+state.Defense(definitions),48,313,804,34,23,Muted);
+            string[] names={"생활","외출","물품","기록"}, ids={"home","map","inventory","journal"};
+            for(int i=0;i<4;i++) { string id=ids[i]; Button(names[i],48+i*206,362,186,62,()=>{page=id; message=""; Render();},state.CanAct,page==id); }
         }
-        void Sidebar()
+        void Dock()
         {
-            Box("Survival dock",48,1405,804,140,new Color32(25,32,33,255));
-            int alive=0; foreach(var d in state.districts) if(!d.erased) alive++;
-            Label("장소 "+alive+"/8  ·  자정까지 "+(24-state.hour)+"시간  ·  밤마다 식량 2 / 식수 2",66,1420,768,36,20,Muted);
-            Button("자정까지 기다린다   →",66,1474,478,58,()=>Apply(state.Midnight(),"shelter"),!state.finished,true);
-            Button("처음부터",566,1474,268,58,()=>{confirmRestart=true; Render();});
+            Box("Dock",48,1412,804,138,Panel);
+            Label(state.CurrentLocation=="home"?"송파구 자취방  ·  물과 가스는 충분하다.":"소지 물품과 집의 보관 물품은 별개다.",66,1422,768,38,22,Muted);
+            bool home=state.CurrentLocation=="home";
+            Button(home?(state.IsNight(definitions.TEMP_BALANCE)?"아침까지 머무른다":"밤까지 머무른다"):"집으로 돌아간다",66,1477,540,58,()=>{if(home) Apply(state.Rest(definitions,true)); else SelectLocation("home");},state.CanAct,true);
+            Button("메뉴",626,1477,208,58,()=>{page="menu"; Render();},state.CanAct || state.IsGameOver);
         }
-        void StoryTop(string kicker,string heading)
+        void Hero(string title)
         {
-            Picture(48,306,804,340,.84f);
-            Box("Image caption",48,588,804,58,new Color(.035f,.055f,.065f,.86f));
-            Label(kicker,68,601,764,32,19,Amber);
-            Label(heading,48,684,804,64,38,Paper);
+            Picture(48,454,804,220); Label(title,48,702,804,60,36,Paper);
         }
-        void Shelter()
+        void Choice(int index,string title,string detail,float y,Action action,bool enabled=true)
         {
-            StoryTop("SEOUL  /  EULJIRO  /  SAFEHOUSE",message==""?"사라진 골목의 아침":"오늘의 기록");
-            StoryBody(message==""?state.lastReport:message);
-            Choice(0,"도시로 나간다","남아 있는 장소와 물자를 확인한다",1040,()=>{page="map"; message=""; Render();});
-            Choice(1,"작업대에 앉는다","생존에 필요한 설비를 만든다",1152,()=>{page="craft"; message=""; Render();});
-            Choice(2,"상처를 치료한다","약품 1 · 1시간 / 체력 +25",1264,()=>Apply(state.Heal()),state.medicine>0&&state.health<100&&state.CanAct(1));
+            shortcuts[index]=enabled?action:null; Button((index+1).ToString("00")+"  "+title+"\n     "+detail,48,y,804,94,action,enabled);
         }
-        void Choice(int key,string titleText,string detail,float y,Action action,bool enabled=true)
+        string ReportText => string.IsNullOrEmpty(message)?state.lastReport:message;
+        void Home()
         {
-            shortcuts[key]=enabled?action:null;
-            Button((key+1).ToString("00")+"    "+titleText+"\n        "+detail,48,y,804,94,action,enabled);
-        }
-        void Map()
-        {
-            Label("아직 지도에 남아 있는 곳들",48,310,804,60,36,Paper);
-            Label("징후와 마지막 방문을 함께 살펴보자.",48,380,804,40,24,Muted);
-            for(int i=0;i<state.districts.Count;i++)
-            {
-                int id=i; var d=state.districts[i]; int col=i%2,row=i/2; float x=48+col*414,y=454+row*226;
-                Box("District",x,y,390,204,d.erased?new Color32(18,24,26,255):Panel);
-                Label(d.erased?"지워진 장소":d.name,x+20,y+18,350,46,28,d.erased?Muted:Paper);
-                Label(d.erased?"이곳에는 도착할 수 없다.":"마지막 방문 "+d.silence+"일 전"+(state.protectedDistrict==i?" · 보존 중":""),x+20,y+80,350,45,20,d.silence>=4?Amber:Muted);
-                if(!d.erased) Button("살펴보기   →",x+20,y+134,350,54,()=>{selected=id; page="explore"; message=""; Render();});
-            }
+            Hero("송파구 자취방");
+            Label("집: 스팸 "+state.HomeStorage.Count("spam")+" · 참치 "+state.HomeStorage.Count("tuna")+" · 쌀 "+definitions.Quantity("rice",state.HomeStorage.Count("rice")),48,768,804,34,23,Muted);
+            Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,820,150);
+            Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
+            Choice(1,"집에서 쉰다",definitions.TEMP_BALANCE.restHours+"시간 · 연속 "+definitions.TEMP_BALANCE.injuryRestHours+"시간마다 부상 1곳 회복",1122,()=>Apply(state.Rest(definitions)));
+            Choice(2,state.Story.HasRadio?"라디오를 켠다":"정비와 보안",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"집의 침입 저항과 외부 주목도를 확인한다",1234,()=>{if(state.Story.HasRadio) Apply(state.ListenRadio(definitions)); else {page="security"; message=""; Render();}});
         }
         void Explore()
         {
-            var d=state.districts[selected];
-            StoryTop("CITY RECORD  /  "+(selected+1).ToString("00"),d.name);
-            StoryBody(message==""?d.description+"\n"+d.clue:message);
-            Choice(0,"조심스럽게 수색한다","3시간 · 부상 없이 소량의 물자",1040,()=>Apply(state.Visit(selected,false),"explore"),!d.erased&&state.CanAct(3));
-            Choice(1,"안쪽까지 뒤진다","4시간 · 체력 -6 · 남은 물자 모두",1152,()=>Apply(state.Visit(selected,true),"explore"),!d.erased&&state.CanAct(4));
-            Choice(2,"징후를 관찰하고 기록한다","1시간 · 소멸의 단서를 남긴다",1264,()=>Apply(state.Observe(selected),"explore"),!d.erased&&state.CanAct(1));
+            var location=definitions.Location(state.CurrentLocation);
+            Hero(location.name); Paragraph(string.IsNullOrEmpty(message)?location.description:message,790,180);
+            Choice(0,"주변을 수색한다",location.searchHours+"시간 · 안쪽에도 다른 사람이 있을 수 있다",1010,()=>Apply(state.Search(definitions)));
+            Choice(1,"소지 물품을 확인한다","식량과 도구를 정리한다",1122,()=>{page="inventory"; Render();});
+            Choice(2,"집으로 돌아간다",location.travelHours+"시간 · 귀갓길에도 조우할 수 있다",1234,()=>SelectLocation("home"));
         }
-        void Craft()
+        void Map()
         {
-            Label("사라진 것들을 대신하는 법",48,310,804,60,36,Paper);
-            Label(message==""?"쓸모없는 부품도, 잃어버린 도시의 한 조각이 될 수 있다.":message,48,390,804,104,26,Muted);
-            string[] names={"간이 정수기","옥상 텃밭","기록 송신기"}; string[] details={"부품 4 · 2시간\n밤의 소비 후, 매일 아침 식수 2를 생산한다.","부품 5 · 2시간\n밤의 소비 후, 매일 아침 식량 2를 생산한다.","부품 3 · 2시간\n장소 하나를 선택해 오늘 자정의 소멸을 막는다."};
-            bool[] made={state.filter,state.garden,state.beacon}; int[] costs={4,5,3};
-            for(int i=0;i<3;i++) { int r=i; float y=518+i*260; Box("Recipe",48,y,804,238,Panel); Label(names[i]+(made[i]?"   /   설치 완료":""),70,y+16,760,44,30,Paper); Label(details[i],70,y+74,760,84,23,Muted); Button(made[i]?"설치됨":"제작한다  →",70,y+170,760,54,()=>Apply(state.Craft(r),"craft"),!made[i]&&state.scrap>=costs[i]&&state.CanAct(2),true); }
-            if(state.beacon) Button("기록을 보존할 장소 선택하기   →",48,1314,804,60,()=>{page="journal"; message=""; Render();},true,true);
+            Label("송파구 일대",48,462,804,60,36,Paper);
+            Label("장소를 눌러 정보를 확인하세요.  /  약도",48,528,804,38,24,Muted);
+            var map=Rect("Neighborhood map",root,48,586,804,690).gameObject.AddComponent<NeighborhoodMapGraphic>();
+            map.CurrentLocation=state.CurrentLocation; map.raycastTarget=false;
+            foreach(var location in definitions.locations)
+            {
+                Vector2 p=NeighborhoodMapGraphic.Position(location.id); float x=48+p.x*804,y=586+p.y*690;
+                bool current=location.id==state.CurrentLocation;
+                var hit=Box("지도:"+location.id,x-100,y-44,200,116,Color.clear); hit.GetComponent<Image>().raycastTarget=true;
+                var button=hit.gameObject.AddComponent<Button>(); button.targetGraphic=hit.GetComponent<Image>(); button.onClick.AddListener(()=>SelectLocation(location.id));
+                Box("Map label",x-100,y+40,200,38,Ink);
+                var label=Label(location.name,x-100,y+43,200,34,25,current?Amber:Paper); label.alignment=TextAnchor.MiddleCenter;
+                if(current) { var here=Label("현재 위치",x-100,y+80,200,30,20,Amber); here.alignment=TextAnchor.MiddleCenter; }
+            }
+            Label("● 현재 위치   ○ 탐색 가능한 장소",48,1296,804,36,23,Amber);
+            Label("장소 선택 → 위치 정보 → 이동하기",48,1346,804,36,24,Muted);
+        }
+        void SelectLocation(string id) { if(!state.CanAct) return; selectedLocation=id; page="location"; message=""; Render(); }
+        void LocationDetails()
+        {
+            var location=definitions.Location(selectedLocation); bool current=location.id==state.CurrentLocation;
+            int hours=current?0:location.id=="home"?definitions.Location(state.CurrentLocation).travelHours:location.travelHours;
+            var arrival=state.CalendarDate.AddHours(state.hour+hours); bool night=arrival.Hour<definitions.TEMP_BALANCE.dayStarts || arrival.Hour>=definitions.TEMP_BALANCE.nightStarts;
+            Label("위치 정보  /  "+(current?"현재 위치":"이동 전 확인"),48,462,804,48,26,Muted);
+            Label(location.name,48,532,804,64,42,Paper);
+            Paragraph(location.description,624,230,28);
+            Label(current?"지금 이곳에 머무르고 있다.":"이동 "+hours+"시간  ·  "+arrival.ToString("MM.dd HH:mm")+" 도착 예정",48,882,804,48,27,Amber);
+            string risk=night?"밤에는 만남이 드물지만 약탈꾼에게 발견되면 위험하다.":"낮에는 길거리나 건물 안에서 다른 생존자와 마주칠 수 있다.";
+            string resources=location.id=="home"?"요리 · 물자 보관 · 휴식 · 부상 치료":"수색 "+location.searchHours+"시간 / 회\n발견 가능: "+LootNames(location);
+            Paragraph(resources+"\n\n"+risk,952,234,25);
+            Button(current?"현재 위치":"이동하기",48,1212,804,76,()=>Apply(state.Travel(location.id,definitions)),!current && state.CanAct,true);
+            Button("지도로 돌아가기",48,1310,390,70,()=>{page="map"; Render();});
+            if(current) Button("생활 화면",462,1310,390,70,()=>{page="home"; Render();});
+        }
+        string LootNames(LocationDefinition location)
+        {
+            var names=new System.Collections.Generic.List<string>();
+            foreach(var item in location.loot) names.Add(definitions.Item(item.id).name);
+            return string.Join(" · ",names);
+        }
+        void Kitchen()
+        {
+            Label("부르스타 앞에서",48,462,804,60,36,Paper);
+            Paragraph(string.IsNullOrEmpty(message)?"물을 올리고 남은 재료를 확인한다. 만든 음식은 먹거나 집에 보관할 수 있다.":message,542,110,25);
+            for(int i=0;i<definitions.recipes.Length;i++)
+            {
+                var recipe=definitions.recipes[i]; float y=680+i*172; Box(recipe.name,48,y,804,154,Panel);
+                Label(recipe.name,68,y+10,760,36,28,Paper); Label(Cost(recipe.ingredients)+" · "+recipe.hours+"시간",68,y+52,760,32,21,Muted);
+                bool home=state.CurrentLocation=="home";
+                Button("조리한다",68,y+96,360,48,()=>Apply(state.Cook(recipe.id,definitions),"kitchen"),home && state.HomeStorage.Has(recipe.ingredients),true);
+                Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),452,y+96,380,48,()=>Apply(state.Eat(recipe.result,definitions),"kitchen"),state.Backpack.Count(recipe.result)>0 || (home && state.HomeStorage.Count(recipe.result)>0));
+            }
+        }
+        string Cost(ItemStack[] ingredients) { var costs=new string[ingredients.Length]; for(int i=0;i<costs.Length;i++) costs[i]=definitions.Item(ingredients[i].id).name+" "+definitions.Quantity(ingredients[i].id,ingredients[i].amount); return string.Join(" · ",costs); }
+        void InventoryPage()
+        {
+            Label("소지품과 집의 물자",48,462,804,60,36,Paper);
+            Paragraph(string.IsNullOrEmpty(message)?"약품 1개로 부상 1곳을 치료한다. 집에 둔 물건은 귀가해야 사용할 수 있다.":message,542,108,25);
+            ScrollArea("Inventory",678,694,out var content); float y=12;
+            foreach(var item in definitions.items.OrderByDescending(x=>x.injuriesTreated))
+            {
+                int pack=state.Backpack.Count(item.id), home=state.HomeStorage.Count(item.id); bool equipped=state.Equipment.Contains(item.id);
+                if(pack+home==0 && !equipped) continue;
+                Label(item.name+(equipped?" · 착용 중":""),18,y,768,40,28,Paper,content);
+                Label("소지 "+definitions.Quantity(item.id,pack)+" / 집 "+definitions.Quantity(item.id,home)+(item.injuriesTreated>0?" · 부상 치료 "+definitions.TEMP_BALANCE.treatmentHours+"시간":""),18,y+48,768,36,23,Muted,content);
+                float buttonX=18;
+                if(item.id!="burner" && state.CurrentLocation=="home")
+                {
+                    Button("챙기기",buttonX,y+96,230,52,()=>Apply(state.Transfer(item.id,true,definitions),"inventory"),home>0,false,content); buttonX+=250;
+                    Button("보관",buttonX,y+96,230,52,()=>Apply(state.Transfer(item.id,false,definitions),"inventory"),pack>0,false,content); buttonX+=250;
+                }
+                if(item.injuriesTreated>0) Button("치료",buttonX,y+96,230,52,()=>Apply(state.TreatInjury(item.id,definitions),"inventory"),state.CanAct && state.Vitals.Injuries.Count>0 && (pack>0 || (state.CurrentLocation=="home" && home>0)),true,content);
+                else if(item.consumable) Button("먹기",buttonX,y+96,230,52,()=>Apply(state.Eat(item.id,definitions),"inventory"),pack>0 || (state.CurrentLocation=="home" && home>0),true,content);
+                else if(item.strength>0 || item.defense>0) Button(equipped?"벗기":"착용",buttonX,y+96,230,52,()=>Apply(state.Equip(item.id,definitions),"inventory"),true,true,content);
+                y+=178;
+            }
+            content.sizeDelta=new Vector2(804,Mathf.Max(694,y));
+        }
+        void Security()
+        {
+            Label("집을 지키는 방법",48,462,804,60,36,Paper);
+            Paragraph("침입 저항 "+state.Protection(definitions)+" · 외부 주목 "+state.Attention(definitions)+"\n"+(string.IsNullOrEmpty(message)?"고급 설비가 눈에 띄면 물자가 있는 집으로 보일 수 있다.":message),542,156,25);
+            for(int i=0;i<definitions.security.Length;i++)
+            {
+                var device=definitions.security[i]; float y=744+i*260; bool installed=state.InstalledSecurity.Contains(device.id);
+                Box(device.name,48,y,804,236,Panel); Label(device.name,68,y+14,764,42,30,Paper);
+                Label("침입 저항 +"+device.protection+" / 외부 주목 +"+device.attention+"\n"+Cost(device.ingredients)+" · "+device.hours+"시간",68,y+70,764,86,23,Muted);
+                Button(installed?"설치됨":"보강한다",68,y+170,764,54,()=>Apply(state.InstallSecurity(device.id,definitions),"security"),state.CurrentLocation=="home" && !installed && state.HomeStorage.Has(device.ingredients),true);
+            }
         }
         void Journal()
         {
-            Label("소멸 관찰 일지",48,310,804,60,36,Paper);
-            Label("사건을 모으면 우연 사이에 규칙이 보일지도 모른다.",48,386,804,70,24,Muted);
-            if(state.beacon)
-            {
-                Label("오늘의 보존 대상  /  눌러서 변경",48,476,804,38,22,Amber);
-                int j=0; for(int i=0;i<state.districts.Count;i++) { if(state.districts[i].erased) continue; int id=i; Button(state.districts[i].name,48+(j%2)*414,530+(j/2)*72,390,62,()=>Apply(state.Protect(id),"journal"),!state.finished,state.protectedDistrict==i); j++; }
-            }
-            float top=state.beacon?876:510;
-            var area=Box("Scrollable diary",48,top,804,1380-top,new Color32(25,32,33,255)); area.gameObject.AddComponent<RectMask2D>();
-            var content=Rect("Entries",area,0,0,804,Mathf.Max(1380-top,state.journal.Count*244+30));
-            var scroll=area.gameObject.AddComponent<ScrollRect>(); scroll.content=content; scroll.viewport=area; scroll.horizontal=false; scroll.vertical=true; scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=35;
-            area.GetComponent<Image>().raycastTarget=true;
-            float offset=18;
-            for(int i=0;i<state.journal.Count;i++)
-            {
-                var entry=Label(state.journal[i],22,offset,760,214,24,i==0?Paper:Muted,content);
-                float entryHeight=Mathf.Max(84,entry.preferredHeight+10);
-                entry.rectTransform.sizeDelta=new Vector2(760,entryHeight);
-                offset+=entryHeight+22;
-                Box("Entry rule",22,offset,760,1,new Color32(53,64,61,255),content);
-                offset+=22;
-            }
-            content.sizeDelta=new Vector2(804,Mathf.Max(1380-top,offset));
-            Label("드래그하거나 마우스 휠로 넘깁니다.",48,top-38,804,30,18,Muted);
+            Label("생존 기록",48,462,804,60,36,Paper); Label("작성자 : "+state.PlayerNickname,48,540,804,48,26,Muted);
+            ScrollArea("Journal",620,752,out var content); float y=18;
+            foreach(var entry in state.journal) { var text=Label(entry,18,y,768,200,25,Paper,content); float h=Mathf.Max(88,text.preferredHeight+20); text.rectTransform.sizeDelta=new Vector2(768,h); y+=h+28; Box("Entry rule",18,y,768,1,new Color32(61,73,67,255),content); y+=28; }
+            content.sizeDelta=new Vector2(804,Mathf.Max(752,y));
         }
-        void Ending()
+        void EncounterPage()
         {
-            StoryTop("END OF RECORD  /  DAY "+state.day.ToString("00"),state.won?"아직, 기록할 내일이 있다":"마지막 장");
-            StoryBody(state.lastReport,340,26);
-            Button("새로운 일지를 펼친다   →",48,1152,804,84,NewGame,true,true);
-            Button("남겨진 기록 읽기",48,1264,804,84,()=>{readFinishedJournal=true; page="journal"; Render();});
+            Hero("누군가 물품을 요구한다"); Paragraph(state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?",790,180);
+            Choice(0,"순순히 내어준다","물품을 내어주고 부상을 피한다",1060,()=>Apply(state.ResolveEncounter(false,definitions)));
+            Choice(1,"저항한다","빠져나갈 수도 있지만 부상을 입을 수 있다",1190,()=>Apply(state.ResolveEncounter(true,definitions)));
+        }
+        void GameOver()
+        {
+            Hero("기록이 멈췄다"); Paragraph("체력이 바닥났다. 더는 몸을 움직일 수 없다.\n\n"+state.lastReport,790,240);
+            Button("새로운 기록",48,1130,804,84,()=>{confirmRestart=true;Render();},true,true);
+            Button("남겨진 일지",48,1250,804,84,()=>{Clear(); Header(); Journal(); Button("돌아가기",48,1450,804,70,Render);});
+        }
+        void Menu()
+        {
+            Label("기록을 정리한다",48,470,804,60,36,Paper); Paragraph(ReportText,560,170);
+            Button("집의 보안과 정비",48,780,804,84,()=>{page="security";message="";Render();},state.CurrentLocation=="home");
+            Button("기록 저장",48,890,390,84,()=>{Save();message="현재 기록을 저장했다.";Render();},true,true);
+            Button("저장 기록 불러오기",462,890,390,84,Load,store.Exists);
+            Button("기록 이어가기",48,1010,804,84,()=>{page="home";Render();});
+            Button("새 기록 시작",48,1130,804,84,()=>{confirmRestart=true;Render();});
+            if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,()=>Apply(state.ListenRadio(definitions),"menu"),state.CanUseRadio);
         }
         void RestartPage()
         {
-            StoryTop("A NEW RECORD", "새 일지를 시작할까?");
-            Label("현재 일지의 저장 내용이 새 기록으로 바뀐다.",48,774,804,180,28,Paper);
-            Button("기록을 이어 간다",48,1152,804,84,()=>{confirmRestart=false; Render();},true,true);
-            Button("새 일지를 시작한다",48,1264,804,84,NewGame);
+            Hero("새 기록을 시작할까?"); Paragraph("새 오프닝을 마치면 현재 저장이 새 기록으로 바뀐다.",790,180);
+            Button("현재 기록으로 돌아간다",48,1100,804,84,()=>{confirmRestart=false;Render();},true,true);
+            Button("새로운 기록 시작",48,1230,804,84,BeginOpening);
         }
-        void NewGame() { state=SurvivalState.NewGame(); title=false; confirmRestart=false; readFinishedJournal=false; page="shelter"; message=""; Save(); Render(); }
-        void Apply(string text,string next="shelter") { message=text; page=next; Save(); Render(); }
-        void Save()
+        void ContinuePage()
         {
-            try { string temp=SavePath+".tmp"; File.WriteAllText(temp,JsonUtility.ToJson(state,true)); File.Copy(temp,SavePath,true); File.Delete(temp); }
-            catch(Exception e) { Debug.LogWarning("일지 저장 실패: "+e.Message); message+="\n저장하지 못했습니다. 저장 폴더의 여유 공간을 확인해 주세요."; }
+            Picture(48,120,804,460); Label("Vanishing Days",48,680,804,100,56,Paper);
+            Paragraph(string.IsNullOrEmpty(message)?"남겨 둔 기록이 있다.":message,840,170);
+            Button("기록 이어 읽기",48,1120,804,88,Load,true,true);
+            Button("새 기록 시작",48,1250,804,88,BeginOpening);
         }
+        void BeginOpening()
+        {
+            confirmRestart=false; message=""; Clear();
+            var host=new GameObject("Opening",typeof(RectTransform),typeof(OpeningScreenView)); host.transform.SetParent(root,false);
+            openingView=host.GetComponent<OpeningScreenView>(); openingView.OnOpeningCompleted+=StartMainGame; openingView.Initialize(font);
+        }
+        void StartMainGame(string playerNickname)
+        {
+            if(openingView==null) return;
+            var difficulty=openingView.SelectedDifficulty;
+            openingView.OnOpeningCompleted-=StartMainGame; openingView.gameObject.SetActive(false); Destroy(openingView.gameObject); openingView=null;
+            state=SurvivalState.NewGame(difficulty,definitions); state.PlayerNickname=playerNickname; state.Story.OpeningCompleted=true;
+            confirmRestart=false; page="home"; message=""; Save(); Render();
+        }
+        void Apply(string text,string next="home") { message=text; page=next; Save(); Render(); }
+        void Save() { try { store.Save(state); } catch(Exception e) { Debug.LogWarning("Save failed: "+e.Message); message="기록을 저장하지 못했다. 저장 공간을 확인해 주세요."; } }
         void Load()
         {
-            try { var loaded=JsonUtility.FromJson<SurvivalState>(File.ReadAllText(SavePath)); if(loaded==null||loaded.districts==null||loaded.districts.Count!=8||loaded.day<1||loaded.day>7) throw new InvalidDataException(); state=loaded; title=false; page="shelter"; message=""; Render(); }
-            catch(Exception) { title=false; message="일지를 읽을 수 없어 새 기록을 준비했다."; state=SurvivalState.NewGame(); Render(); }
+            if(store.TryLoad(out var restored,out var error)) { state=restored; confirmRestart=false; page="home"; message=""; Render(); }
+            else { Debug.LogWarning("Load failed: "+error); page="continue"; message="남겨 둔 기록을 읽을 수 없다. 기존 파일은 보관돼 있다."; Render(); }
         }
+#if UNITY_EDITOR || VD_UI_VERIFICATION
         IEnumerator Smoke()
         {
-            string dir=Path.GetFullPath("Builds/Verification"); Directory.CreateDirectory(dir);
-            // Let the player splash screen finish before checking rendered UI.
-            yield return new WaitForSeconds(4f);
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"01-title.png"));
-            yield return null; title=false; page="shelter"; Render();
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"02-game.png"));
-            yield return null; page="map"; Render();
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"03-map.png"));
-            yield return null; selected=1; page="explore"; message=""; Render();
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"04-choice.png"));
-            yield return null; page="craft"; Render();
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"05-craft.png"));
-            yield return null; page="journal"; Render();
-            yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"06-journal.png"));
-            yield return null; Debug.Log("VD_SMOKE_OK"); Application.Quit();
+            string dir=Path.GetFullPath("Builds/SurvivalVerification"); Directory.CreateDirectory(dir);
+            byte[] previousSave=File.Exists(SavePath)?File.ReadAllBytes(SavePath):null;
+            try
+            {
+                yield return new WaitForSeconds(4f);
+                if(openingView==null) throw new InvalidOperationException("Opening did not start.");
+                while(openingView!=null)
+                {
+                    var flow=openingView.Flow;
+                    string id=flow.CurrentScreenId;
+                    yield return null; yield return new WaitForEndOfFrame();
+                    ScreenCapture.CaptureScreenshot(Path.Combine(dir,id+".png"));
+                    if(id=="OPEN_00")
+                    {
+                        OpeningButton("어려움").onClick.Invoke();
+                        if(openingView.SelectedDifficulty!=GameDifficulty.HARD) throw new InvalidOperationException("Difficulty selection failed.");
+                        yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DIFFICULTY-HARD.png"));
+                        OpeningButton("쉬움").onClick.Invoke();
+                        if(openingView.SelectedDifficulty!=GameDifficulty.EASY) throw new InvalidOperationException("Easy selection failed.");
+                        OpeningButton("보통").onClick.Invoke();
+                    }
+                    if(id=="OPEN_07")
+                    {
+                        var scroll=openingView.GetComponentInChildren<ScrollRect>();
+                        if(scroll.content.rect.height<=scroll.viewport.rect.height) throw new InvalidOperationException("Long record must scroll.");
+                        scroll.verticalNormalizedPosition=0;
+                        yield return null; yield return new WaitForEndOfFrame();
+                        ScreenCapture.CaptureScreenshot(Path.Combine(dir,id+"-bottom.png"));
+                    }
+                    if(flow.Current.kind=="Nickname")
+                    {
+                        var input=openingView.GetComponentInChildren<InputField>();
+                        input.text="   ";
+                        if(OpeningButton("기록 시작").interactable) throw new InvalidOperationException("Blank nickname button enabled.");
+                        input.text=""; input.ActivateInputField(); yield return null;
+                        foreach(char c in "  기록자A1  ") input.ProcessEvent(new Event { type=EventType.KeyDown, character=c });
+                        input.ForceLabelUpdate();
+                        if(input.text!="  기록자A1  ") throw new InvalidOperationException("Korean committed text input failed: "+input.text);
+                        if(input.textComponent.text.Trim()!="기록자A1" || input.placeholder.enabled) throw new InvalidOperationException("Committed nickname is not visible.");
+                        var keyboard=Keyboard.current;
+                        if(keyboard!=null)
+                        {
+                            var ime=UnityEngine.InputSystem.LowLevel.IMECompositionEvent.Create(keyboard.deviceId,"한",UnityEngine.InputSystem.LowLevel.InputState.currentTime);
+                            InputSystem.QueueEvent(ref ime); yield return null;
+                            var bridge=EventSystem.current.currentInputModule.input;
+                            if(bridge.compositionString!="한") throw new InvalidOperationException("IME composition bridge failed.");
+                            if(!input.textComponent.text.Contains("한")) throw new InvalidOperationException("IME composition is not visible.");
+                            ime=UnityEngine.InputSystem.LowLevel.IMECompositionEvent.Create(keyboard.deviceId,"",UnityEngine.InputSystem.LowLevel.InputState.currentTime);
+                            InputSystem.QueueEvent(ref ime); yield return null;
+                        }
+                        yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"OPEN_11-input.png"));
+                        OpeningButton("기록 시작").onClick.Invoke();
+                    }
+                    else OpeningButton(flow.Current.kind=="Question"?"예":flow.Current.button).onClick.Invoke();
+                }
+                if(state.PlayerNickname!="기록자A1" || page!="home") throw new InvalidOperationException("Main game/profile handoff failed.");
+                var restored=JsonUtility.FromJson<SurvivalState>(File.ReadAllText(SavePath));
+                if(restored.PlayerNickname!=state.PlayerNickname) throw new InvalidOperationException("Nickname save round trip failed.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MAIN.png"));
+                if(state.Vitals.CurrentHP!=500 || state.CurrentLocation!="home" || state.Story.HasRadio || state.HomeStorage.Count("spam")!=5) throw new InvalidOperationException("v0.3 starting state mismatch.");
+                page="kitchen"; Render(); yield return null;
+                ClickGameButton("조리한다",1);
+                if(state.HomeStorage.Count("spam_meal")!=1) throw new InvalidOperationException("Cooking button failed.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"KITCHEN.png"));
+                ClickGameButton("먹는다");
+                if(state.HomeStorage.Count("spam_meal")!=0) throw new InvalidOperationException("Eating button failed.");
+                Apply(state.Transfer("tuna",true,definitions),"inventory");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"INVENTORY.png"));
+                page="map"; Render(); yield return null; yield return new WaitForEndOfFrame();
+                var mapGraphic=root.GetComponentInChildren<NeighborhoodMapGraphic>();
+                var mapRenderer=mapGraphic==null?null:mapGraphic.GetComponent<CanvasRenderer>();
+                if(mapRenderer==null || mapRenderer.cull || mapRenderer.materialCount==0) throw new InvalidOperationException("Map renderer is missing/invisible.");
+                var mapMesh=mapRenderer.GetMesh();
+                if(mapMesh==null || mapMesh.vertexCount<1000 || mapMesh.triangles.Length<1000) throw new InvalidOperationException("Road/building/marker geometry was not rendered.");
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MAP.png"));
+                Debug.Log("VD_MAP_RENDER_OK: actual CanvasRenderer has road/building/marker mesh in "+(Application.isEditor?"Editor Play":"Windows Player"));
+                int selectionHour=state.hour; uint selectionRandom=state.RandomState;
+                ClickGameButton("지도:school");
+                if(page!="location" || state.CurrentLocation!="home" || state.hour!=selectionHour || state.RandomState!=selectionRandom || state.AwayFromHome) throw new InvalidOperationException("Map selection caused travel/time/RNG changes.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"LOCATION.png"));
+                ClickGameButton("이동하기");
+                if(state.CurrentLocation!="school" || state.hour!=(selectionHour+3)%24) throw new InvalidOperationException("Explicit travel button failed.");
+                if(state.PendingEncounter!=null) Apply(state.ResolveEncounter(false,definitions));
+                for(int i=0;i<definitions.TEMP_BALANCE.radioSearches;i++) Apply(state.Search(definitions,()=>1));
+                if(!state.Story.HasRadio || state.Story.HasMetDongrim) throw new InvalidOperationException("Radio gate failed.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SCHOOL-RADIO.png"));
+                Apply(state.Travel("home",definitions,()=>1)); Apply(state.Eat("tuna",definitions));
+                Apply(state.Travel("empty_house",definitions,()=>1));
+                Apply(state.Search(definitions,()=>1)); Apply(state.Search(definitions,()=>1)); Apply(state.Travel("home",definitions,()=>1));
+                Apply(state.Transfer("wood",false,definitions)); Apply(state.Transfer("tools",false,definitions)); Apply(state.InstallSecurity("analog",definitions),"security");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SECURITY.png"));
+                page="inventory"; Render(); ClickGameButton("착용"); ClickGameButton("착용");
+                if(state.Strength(definitions)<=0 || state.Defense(definitions)<=0) throw new InvalidOperationException("Equipment buttons did not apply modifiers.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"EQUIPMENT.png"));
+                state.hour=8; Apply(state.Travel("store",definitions,()=>0));
+                if(state.PendingEncounter==null) throw new InvalidOperationException("Day encounter missing.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DAY-ENCOUNTER.png"));
+                ClickGameButton("순순히 내어준다");
+                if(state.PendingEncounter!=null) throw new InvalidOperationException("Day choice did not resolve.");
+                state.Vitals.CurrentHP=200; state.Vitals.Hunger=0; state.Vitals.HungerPenalty=0; state.Vitals.Injuries.Clear(); state.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f }); page="home"; Render();
+                if(state.Vitals.RecoverableMaxHP(definitions.TEMP_BALANCE)!=450) throw new InvalidOperationException("HUD recovery cap wrong.");
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"RECOVERY-CAP.png"));
+                Save();
+                if(!store.TryLoad(out var saved,out _) || saved.Backpack.Count("radio")!=1 || saved.Story.HasMetDongrim || saved.Vitals.CurrentHP!=200) throw new InvalidOperationException("v0.3 full save/load failed.");
+                state.CurrentLocation="home"; state.AwayFromHome=false; state.PendingEncounter=null; state.Backpack.Add("bandage",1); page="inventory"; Render();
+                foreach(var inventoryScroll in root.GetComponentsInChildren<ScrollRect>()) if(inventoryScroll.name=="Inventory") inventoryScroll.verticalNormalizedPosition=1;
+                yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MEDICINE.png"));
+                int bandagesBefore=state.Backpack.Count("bandage")+state.HomeStorage.Count("bandage"); ClickGameButton("치료");
+                if(state.Vitals.Injuries.Count!=0 || state.Vitals.RecoverableMaxHP(definitions.TEMP_BALANCE)!=500 || state.Backpack.Count("bandage")+state.HomeStorage.Count("bandage")!=bandagesBefore-1) throw new InvalidOperationException("Medicine UI failed.");
+                state.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f }); Apply(state.Rest(definitions));
+                Save(); if(!store.TryLoad(out var resting,out _) || resting.InjuryRestProgress!=2) throw new InvalidOperationException("Rest progress save failed.");
+                Apply(state.Rest(definitions)); Apply(state.Rest(definitions)); if(state.Vitals.Injuries.Count!=0) throw new InvalidOperationException("Rest UI recovery failed.");
+                Debug.Log("VD_MEDICINE_MAP_UI_OK: map selection preserves time/location/RNG; explicit movement; medicine button; 6h rest; saved rest progress.");
+                yield return null; Debug.Log("VD_SURVIVAL_UI_OK: 9:16 HUD, 500 HP, cooking/eating buttons, storage, four places, school radio, delayed story gate, security, encounter choice, 450 cap and session save/load.");
+                Debug.Log("VD_OPENING_UI_OK: all screens, long-record scroll, disabled blank submit, Korean committed text, IME composition, nickname binding and main-game handoff.");
+            }
+            finally
+            {
+                if(previousSave!=null) File.WriteAllBytes(SavePath,previousSave); else if(File.Exists(SavePath)) File.Delete(SavePath);
+                Application.Quit();
+            }
         }
+        Button OpeningButton(string caption)
+        {
+            foreach(var button in openingView.GetComponentsInChildren<Button>()) if(button.gameObject.name==caption) return button;
+            throw new InvalidOperationException("Opening button missing: "+caption);
+        }
+        void ClickGameButton(string caption,int index=0)
+        {
+            foreach(var button in root.GetComponentsInChildren<Button>())
+                if(button.interactable && button.gameObject.name.Contains(caption)) { if(index--==0) { button.onClick.Invoke(); return; } }
+            throw new InvalidOperationException("Game button missing: "+caption);
+        }
+#endif
     }
 }

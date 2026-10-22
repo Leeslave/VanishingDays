@@ -34,8 +34,8 @@ namespace VanishingDays.Editor
                 changed=true;
             }
             var serialized=new SerializedObject(game);
-            var direct=serialized.FindProperty("startInShelter");
-            if(changed && !direct.boolValue) { direct.boolValue=true; serialized.ApplyModifiedPropertiesWithoutUndo(); }
+            var direct=serialized.FindProperty("skipOpeningInEditor");
+            if(changed && direct.boolValue) { direct.boolValue=false; serialized.ApplyModifiedPropertiesWithoutUndo(); }
             if(changed)
             {
                 EditorSceneManager.MarkSceneDirty(scene);
@@ -47,7 +47,7 @@ namespace VanishingDays.Editor
                 EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)}.Concat(scenes.Where(s=>s.path!=ScenePath)).ToArray();
             Directory.CreateDirectory("Builds");
             File.WriteAllText("Builds/prototype-scene-setup.txt", "VD_PROTOTYPE_READY\nScene: "+scene.path+"\nController: "+game.name+"\nStart in shelter: "+direct.boolValue+"\nSaved: "+!scene.isDirty);
-            Debug.Log("VD_PROTOTYPE_READY: Prototype scene starts directly in the day-one shelter.");
+            Debug.Log("VD_PROTOTYPE_READY: Prototype scene starts with the opening flow.");
         }
 
         static void ConfigurePortraitGameView()

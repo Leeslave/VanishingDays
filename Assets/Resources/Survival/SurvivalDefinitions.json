@@ -1,0 +1,340 @@
+{
+  "version": 3,
+  "TEMP_BALANCE": {
+    "status": "All non-canonical timings, quantities, effects and probabilities in this file are temporary prototype tuning values.",
+    "startHour": 8,
+    "dayStarts": 6,
+    "nightStarts": 18,
+    "restHours": 2,
+    "hungerPerHour": 4,
+    "hungryAt": 60,
+    "starvingAt": 90,
+    "starvationDamage": 12,
+    "restHealing": 8,
+    "eatHours": 1,
+    "radioSearches": 3,
+    "riceLossUnit": 100,
+    "hungryCapPenalty": 0.1,
+    "starvingCapPenalty": 0.2,
+    "injuryCapPenalty": 0.1,
+    "maxRecoveryPenalty": 0.8,
+    "clampWhenPenaltyAdded": false,
+    "dayDamage": 30,
+    "nightDamage": 110,
+    "dayLoss": 1,
+    "nightLoss": 4,
+    "homeLoss": 3,
+    "dayStreetChance": 0.3,
+    "nightStreetChance": 0.1,
+    "dayInsideChance": 0.24,
+    "nightInsideChance": 0.06,
+    "escapeChance": 0.55,
+    "strengthEscapeBonus": 0.03,
+    "homeRaidChance": 0.08,
+    "attentionRisk": 0.035,
+    "protectionReduction": 0.015,
+    "maxRaidChance": 0.8,
+    "injuryRestHours": 6,
+    "treatmentHours": 1
+  },
+  "items": [
+    {
+      "id": "spam",
+      "name": "스팸",
+      "unit": "캔",
+      "consumable": true,
+      "hungerRelief": 22,
+      "healing": 8
+    },
+    {
+      "id": "tuna",
+      "name": "참치캔",
+      "unit": "캔",
+      "consumable": true,
+      "hungerRelief": 22,
+      "healing": 8
+    },
+    {
+      "id": "rice",
+      "name": "쌀",
+      "unit": "g"
+    },
+    {
+      "id": "burner",
+      "name": "부르스타",
+      "unit": "개",
+      "protectedItem": true
+    },
+    {
+      "id": "ramen",
+      "name": "라면",
+      "unit": "개"
+    },
+    {
+      "id": "wood",
+      "name": "목재",
+      "unit": "개"
+    },
+    {
+      "id": "tools",
+      "name": "생활도구",
+      "unit": "개"
+    },
+    {
+      "id": "radio",
+      "name": "라디오",
+      "unit": "개",
+      "protectedItem": true
+    },
+    {
+      "id": "rice_meal",
+      "name": "밥",
+      "unit": "그릇",
+      "consumable": true,
+      "hungerRelief": 35,
+      "healing": 20
+    },
+    {
+      "id": "spam_meal",
+      "name": "밥과 스팸",
+      "unit": "인분",
+      "consumable": true,
+      "hungerRelief": 60,
+      "healing": 45
+    },
+    {
+      "id": "tuna_meal",
+      "name": "밥과 참치",
+      "unit": "인분",
+      "consumable": true,
+      "hungerRelief": 60,
+      "healing": 45
+    },
+    {
+      "id": "ramen_meal",
+      "name": "끓인 라면",
+      "unit": "그릇",
+      "consumable": true,
+      "hungerRelief": 45,
+      "healing": 25
+    },
+    {
+      "id": "clothes",
+      "name": "옷",
+      "unit": "벌",
+      "defense": 3
+    },
+    {
+      "id": "weapon",
+      "name": "무기",
+      "unit": "개",
+      "strength": 3
+    },
+    {
+      "id": "bandage",
+      "name": "붕대",
+      "unit": "개",
+      "injuriesTreated": 1
+    },
+    {
+      "id": "pills",
+      "name": "알약",
+      "unit": "개",
+      "injuriesTreated": 1
+    },
+    {
+      "id": "antiseptic",
+      "name": "소독약",
+      "unit": "개",
+      "injuriesTreated": 1
+    }
+  ],
+  "locations": [
+    {
+      "id": "home",
+      "name": "집",
+      "description": "서울 송파구의 자취방. 부르스타와 고향에서 올라온 쌀이 남아 있다. 혼자 요리하고 식량을 정리하며 버틸 수 있다.",
+      "travelHours": 0,
+      "searchHours": 0,
+      "loot": []
+    },
+    {
+      "id": "store",
+      "name": "편의점",
+      "description": "점주는 달아났고 진열대는 이미 털렸다. 남은 물자가 있더라도 많지는 않을 것이다.",
+      "travelHours": 1,
+      "searchHours": 1,
+      "loot": [
+        {
+          "id": "tuna",
+          "amount": 1
+        },
+        {
+          "id": "ramen",
+          "amount": 1
+        },
+        {
+          "id": "bandage",
+          "amount": 1
+        },
+        {
+          "id": "pills",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "empty_house",
+      "name": "빈집(추정)",
+      "description": "사람이 사는 곳인지 확신할 수 없다. 안쪽을 살피면 목재와 생활도구를 구할 수 있을 것 같다. 다른 수색자가 있을 수도 있다.",
+      "travelHours": 1,
+      "searchHours": 2,
+      "loot": [
+        {
+          "id": "wood",
+          "amount": 8
+        },
+        {
+          "id": "tools",
+          "amount": 5
+        },
+        {
+          "id": "clothes",
+          "amount": 1
+        },
+        {
+          "id": "weapon",
+          "amount": 1
+        },
+        {
+          "id": "bandage",
+          "amount": 2
+        },
+        {
+          "id": "antiseptic",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "school",
+      "name": "고등학교",
+      "description": "복도와 교실이 넓게 이어져 있다. 잠긴 곳이 많아 수색에는 시간이 걸린다. 아직 학생들이 숨겨 둔 식량이 남아 있을지도 모른다.",
+      "travelHours": 3,
+      "searchHours": 3,
+      "loot": [
+        {
+          "id": "ramen",
+          "amount": 8
+        },
+        {
+          "id": "bandage",
+          "amount": 2
+        },
+        {
+          "id": "pills",
+          "amount": 2
+        },
+        {
+          "id": "antiseptic",
+          "amount": 2
+        }
+      ]
+    }
+  ],
+  "recipes": [
+    {
+      "id": "rice",
+      "name": "밥짓기",
+      "result": "rice_meal",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "rice",
+          "amount": 100
+        }
+      ]
+    },
+    {
+      "id": "spam",
+      "name": "밥과 스팸 조리",
+      "result": "spam_meal",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "rice",
+          "amount": 100
+        },
+        {
+          "id": "spam",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "tuna",
+      "name": "밥과 참치 조리",
+      "result": "tuna_meal",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "rice",
+          "amount": 100
+        },
+        {
+          "id": "tuna",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "ramen",
+      "name": "라면 끓이기",
+      "result": "ramen_meal",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "ramen",
+          "amount": 1
+        }
+      ]
+    }
+  ],
+  "security": [
+    {
+      "id": "analog",
+      "name": "아날로그 보안 보강",
+      "protection": 2,
+      "attention": 0,
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "digital",
+      "name": "전자식 보안 보강",
+      "protection": 3,
+      "attention": 6,
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        }
+      ]
+    }
+  ],
+  "approvedSPBroadcast": ""
+}
