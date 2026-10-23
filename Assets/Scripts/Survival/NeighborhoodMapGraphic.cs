@@ -15,10 +15,10 @@ namespace VanishingDays
             base.Awake();
         }
         public string CurrentLocation;
-        public bool SupplyRumorUnlocked;
+        public string[] VisibleLocations=new string[0];
         public static Vector2 Position(string id)
         {
-            switch(id) { case "home":return new Vector2(.27f,.72f); case "store":return new Vector2(.70f,.55f); case "empty_house":return new Vector2(.25f,.30f); case "supply_site":return new Vector2(.58f,.83f); default:return new Vector2(.73f,.19f); }
+            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); default:return new Vector2(.84f,.18f); }
         }
         VertexHelper mesh;
         Vector2 Point(float x,float y) => new Vector2(rectTransform.rect.xMin+x*rectTransform.rect.width,rectTransform.rect.yMax-y*rectTransform.rect.height);
@@ -60,9 +60,8 @@ namespace VanishingDays
             Line(Point(.70f,.55f),Point(.73f,.19f),8,road);
             // Uncertain edges of the hand-kept map.
             for(int i=0;i<20;i++) { float w=(float)random.NextDouble()*.13f; Block(0,i*.05f,w,.05f,new Color32(12,18,20,190)); Block(1-w,i*.05f,w,.05f,new Color32(12,18,20,190)); }
-            foreach(string id in new[]{"home","store","empty_house","school","supply_site"})
+            foreach(string id in VisibleLocations)
             {
-                if(id=="supply_site" && !SupplyRumorUnlocked) continue;
                 Vector2 p=Position(id),c=Point(p.x,p.y); bool current=id==CurrentLocation;
                 Ring(c,36,7,new Color32(12,18,20,255)); Ring(c,31,4,current?new Color32(211,173,110,255):new Color32(222,216,198,255));
                 var ink=new Color32(222,216,198,255);

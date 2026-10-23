@@ -18,6 +18,7 @@ namespace VanishingDays.Editor
             string path=System.IO.Path.GetFullPath("Builds/Validation/survival-save-test.json");
             var saves=new SessionSaveStore(path,data);
             var state=SurvivalState.NewGame(GameDifficulty.HARD,data,123); state.PlayerNickname="저장검증"; state.Story.OpeningCompleted=true;
+            state.UnlockedLocations.Add("school");
             state.Travel("school",data,()=>1); state.Search(data,()=>0);
             saves.Save(state);
             if(!saves.TryLoad(out var restored,out _) || restored.PlayerNickname!=state.PlayerNickname || restored.CurrentLocation!="school" || restored.PendingEncounter==null || restored.RandomState!=state.RandomState || restored.Difficulty!=GameDifficulty.HARD) throw new Exception("Native session/pending-encounter save round trip failed.");
@@ -39,7 +40,8 @@ namespace VanishingDays.Editor
         {
             data.Validate(); int checks=0;
             Action<bool,string> require=(value,reason)=>{checks++; if(!value) throw new Exception(reason);};
-            Func<SurvivalState> fresh=()=>SurvivalState.NewGame(GameDifficulty.NORMAL,data,123);
+            // Existing action fixtures exercise already discovered routes. New-game unlocks are checked separately.
+            Func<SurvivalState> fresh=()=>{ var value=SurvivalState.NewGame(GameDifficulty.NORMAL,data,123); value.UnlockedLocations.AddRange(new[]{"empty_house","school"}); return value; };
             int[] spam={10,5,3}, tuna={10,5,1}, rice={10000,3000,1000};
             for(int i=0;i<3;i++)
             {
@@ -48,12 +50,12 @@ namespace VanishingDays.Editor
                 require(initial.HomeStorage.Count("burner")==1 && initial.Backpack.Count("radio")+initial.HomeStorage.Count("radio")==0,"Initial burner/radio wrong.");
                 require(initial.HomeStorage.Count("bandage")==new[]{5,3,1}[i] && initial.Backpack.Count("bandage")==0,"Difficulty bandages wrong.");
                 require(initial.Vitals.CurrentHP==500 && initial.Vitals.BaseMaxHP==500 && initial.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==500,"Initial HP wrong.");
-                require(initial.CurrentLocation=="home" && initial.CalendarDate==new DateTime(2031,2,26) && initial.Locations.FindAll(x=>initial.IsLocationUnlocked(x.id,data)).Count==4,"Initial home/date/locations wrong.");
+                require(initial.CurrentLocation=="home" && initial.CalendarDate==new DateTime(2031,2,26) && initial.Locations.FindAll(x=>initial.IsLocationUnlocked(x.id,data)).Count==2,"Initial home/date/locations wrong.");
             }
             var s=fresh(); s.Vitals.CurrentHP=200; s.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f });
             require(s.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==450 && s.Vitals.BaseMaxHP==500,"Recovery cap -10% example failed.");
             s.Vitals.Heal(9999,data.TEMP_BALANCE); require(s.Vitals.CurrentHP==450,"Healing exceeded cap.");
-            s.Vitals.CurrentHP=500; s.Vitals.Heal(1,data.TEMP_BALANCE); require(s.Vitals.CurrentHP==500,"Healing must not reduce existing HP when clamp disabled.");
+            s.Vitals.CurrentHP=500; s.Vitals.Heal(1,data.TEMP_BALANCE); require(s.Vitals.CurrentHP==450,"Healing must enforce the lowered maximum HP.");
             s.Vitals.Damage(500); require(s.IsGameOver,"HP zero did not cause game over.");
             s.Vitals.Heal(500,data.TEMP_BALANCE); require(s.IsGameOver,"Healing resurrected game-over session.");
             int day=s.day; s.Rest(data); s.Travel("school",data); s.Cook("rice",data); require(s.day==day && s.CurrentLocation=="home" && s.HomeStorage.Count("rice")==3000,"Dead player could act.");
@@ -94,13 +96,13 @@ namespace VanishingDays.Editor
             s=fresh(); s.HomeStorage.Add("wood",8); s.HomeStorage.Add("tools",5); s.InstallSecurity("analog",data); before=s.hour; s.InstallSecurity("analog",data); require(s.InstalledSecurity.Count==1 && s.hour==before,"Security duplication spent resources/time.");
             s=fresh(); s.Backpack.Add("clothes",1); s.Backpack.Add("weapon",1); s.Equip("clothes",data); s.Equip("weapon",data); require(s.Strength(data)>0 && s.Defense(data)>0 && s.Backpack.Count("weapon")==0,"Equipment did not modify stats/conserve item."); s.Equip("weapon",data); require(s.Strength(data)==0 && s.HomeStorage.Count("weapon")==1,"Unequip did not remove modifier/return item.");
             s=fresh(); var twin=fresh(); s.Travel("school",data); twin.Travel("school",data); require(s.RandomState==twin.RandomState && (s.PendingEncounter!=null)==(twin.PendingEncounter!=null),"Saved RNG is not deterministic.");
-            s=fresh(); int hungerRate=data.TEMP_BALANCE.hungerPerHour; data.TEMP_BALANCE.hungerPerHour=0; s.AdvanceTime(24*10,data); data.TEMP_BALANCE.hungerPerHour=hungerRate; require(s.day==11 && !s.IsGameOver,"Arbitrary seven-day win/end remains.");
+            s=fresh(); s.HomeStorage.Add("water",100); int hungerRate=data.TEMP_BALANCE.hungerPerHour; data.TEMP_BALANCE.hungerPerHour=0; s.AdvanceTime(24*10,data); data.TEMP_BALANCE.hungerPerHour=hungerRate; require(s.day==11 && !s.IsGameOver,"Arbitrary seven-day win/end remains.");
             foreach(string id in new[]{"bandage","pills","antiseptic"})
             {
                 s=fresh(); s.HomeStorage.Add(id,1); int stock=s.HomeStorage.Count(id); before=s.hour;
                 s.TreatInjury(id,data); require(s.HomeStorage.Count(id)==stock && s.hour==before,"Medicine wasted without injury.");
                 s.Vitals.CurrentHP=200; s.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f }); s.Vitals.Injuries.Add(new Injury { recoveryPenalty=.1f });
-                s.TreatInjury(id,data); require(s.HomeStorage.Count(id)==stock-1 && s.Vitals.Injuries.Count==1 && s.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==450 && s.Vitals.CurrentHP==200,"Medicine treatment/cap/conservation wrong: "+id);
+                s.TreatInjury(id,data); require(s.HomeStorage.Count(id)==stock-1 && s.Vitals.Injuries.Count==1 && s.Vitals.RecoverableMaxHP(data.TEMP_BALANCE)==450 && s.Vitals.CurrentHP==200+data.Item(id).healing,"Medicine treatment/cap/conservation wrong: "+id);
                 s.Travel("store",data,()=>1); before=s.hour; stock=s.HomeStorage.Count(id); s.TreatInjury(id,data);
                 require(s.hour==before && s.HomeStorage.Count(id)==stock && s.Vitals.Injuries.Count==1,"Medicine at home usable outside.");
                 s.Backpack.Add(id,1); s.TreatInjury(id,data); require(s.Backpack.Count(id)==0 && s.Vitals.Injuries.Count==0,"Carried medicine unusable outside.");

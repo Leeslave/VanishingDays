@@ -94,11 +94,11 @@ namespace VanishingDays.Editor
                 if(!s.Story.HasMetDongrim || s.Story.JoinedLiberationFront) throw new Exception("Restored meeting completion failed.");
                 if(!s.journal.Exists(x=>x.Contains("저는 기록자닉네임이라고 합니다"))) throw new Exception("Meeting did not use the restored nickname.");
             }
-            var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site"); legacy.Crowd=null;
+            var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); legacy.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(legacy));
-            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=4 || migrated.Locations.Count!=5 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
+            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=10 || migrated.Locations.Count!=8 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
             migrated.ListenRadio(data); saves.Save(migrated); if(!saves.TryLoad(out migrated,out _) || !migrated.Story.SupplyRumorUnlocked) throw new Exception("Migrated radio unlock failed.");
-            var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id=="supply_site"); preRadio.Crowd=null;
+            var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); preRadio.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(preRadio));
             if(!saves.TryLoad(out var beforeRadio,out _) || beforeRadio.Story.HasRadio || beforeRadio.Story.SupplyRumorUnlocked || beforeRadio.CurrentLocation!="home" || beforeRadio.HomeStorage.Count("bandage")!=1) throw new Exception("Pre-radio legacy migration gave story/items.");
             legacy.Story.HasHeardSPBroadcast=true; legacy.Story.CompleteDongrimRescue(true);

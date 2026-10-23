@@ -9,7 +9,7 @@ namespace VanishingDays.Editor
     public static class PrototypeBuilder
     {
         [MenuItem("Vanishing Days/Validate game rules")]
-        public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); }
+        public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); WorldProgressionChecks.Validate(); VitalsChecks.Validate(); ErasureNewsChecks.Validate(); StorageChecks.Validate(); SleepTradeChecks.Validate(); WaterChecks.Validate(); }
 
         [MenuItem("Vanishing Days/Build Windows prototype")]
         public static void Build() { Build(false); }
@@ -17,6 +17,20 @@ namespace VanishingDays.Editor
         // A separately compiled player exercises the actual Unity build pipeline.
         // Test automation is never compiled into the normal executable.
         public static void BuildUIVerification() { Build(true); }
+        [MenuItem("Vanishing Days/Build Web prototype")]
+        public static void BuildWeb()
+        {
+            ValidateKoreanFont(); Validate(); OpeningFlowChecks.Validate();
+            // Static hosting may not honor Content-Encoding rules. Unity's loader
+            // must be able to decode its own files without special server headers.
+            PlayerSettings.WebGL.compressionFormat=WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback=true;
+            const string folder="Builds/WebGL";
+            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=new[]{"Assets/Scenes/Prototype.unity"}, locationPathName=folder, target=BuildTarget.WebGL, options=BuildOptions.None });
+            if(report.summary.result!=BuildResult.Succeeded) throw new Exception("Web build failed: "+report.summary.result);
+            File.Copy("Assets/Resources/Fonts/OFL.txt",Path.Combine(folder,"NanumGothic-OFL.txt"),true);
+            Debug.Log("VD_WEB_BUILD_OK: "+report.summary.outputPath);
+        }
         static void Build(bool verification)
         {
             ValidateKoreanFont();

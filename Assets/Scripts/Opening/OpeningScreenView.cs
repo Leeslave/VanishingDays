@@ -62,6 +62,7 @@ namespace VanishingDays
         }
         void Render()
         {
+            ReleaseNickname();
             foreach(Transform child in root) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
             nickname=null; submit=null;
             var screen=flow.Current;
@@ -87,7 +88,8 @@ namespace VanishingDays
                 }
                 string initial=SelectedDifficulty==GameDifficulty.EASY?"스팸 10 · 참치 10 · 쌀 10kg":SelectedDifficulty==GameDifficulty.HARD?"스팸 3 · 참치 1 · 쌀 1kg":"스팸 5 · 참치 5 · 쌀 3kg";
                 int bandages=SelectedDifficulty==GameDifficulty.EASY?5:SelectedDifficulty==GameDifficulty.HARD?1:3;
-                Text(initial+"\n붕대 "+bandages+"개 · 부르스타 1개",64,1280,772,104,25,Muted);
+                string water=SelectedDifficulty==GameDifficulty.EASY?"물 무제한":"물 "+(SelectedDifficulty==GameDifficulty.HARD?4:8)+"병 · 식수와 조리에 사용";
+                Text(initial+"\n붕대 "+bandages+"개 · 부르스타 1개\n"+water,64,1280,772,104,25,Muted);
                 Button(screen.button,64,772,flow.Next);
                 return;
             }
@@ -118,6 +120,7 @@ namespace VanishingDays
             Text("한글 · 영문 · 숫자 1~12자",64,806,772,64,24,Muted);
             submit=Button("기록 시작",64,772,SubmitNickname); submit.interactable=false;
             nickname.onValueChanged.AddListener(value=>submit.interactable=OpeningFlowController.IsNicknameValid(value));
+            nickname.onEndEdit.AddListener(value=>MobileInputViewport.Restore());
             StartCoroutine(FocusNickname());
         }
         void SubmitNickname()
@@ -127,7 +130,17 @@ namespace VanishingDays
             // InputField commits composition on focus loss; do not advance on uncommitted text.
             var input=EventSystem.current?.currentInputModule?.input;
             if(input!=null && input.compositionString.Length>0) return;
+            if(!OpeningFlowController.IsNicknameValid(value)) return;
+            ReleaseNickname();
             flow.SubmitNickname(value);
+        }
+        void ReleaseNickname()
+        {
+            if(nickname==null) return;
+            nickname.DeactivateInputField();
+            if(EventSystem.current!=null && EventSystem.current.currentSelectedGameObject==nickname.gameObject)
+                EventSystem.current.SetSelectedGameObject(null);
+            MobileInputViewport.Restore();
         }
         IEnumerator FocusNickname()
         {
