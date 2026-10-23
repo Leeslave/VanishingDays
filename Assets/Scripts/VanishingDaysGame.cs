@@ -263,7 +263,7 @@ namespace VanishingDays
                 default:title="최동림"; body=script.introduction; break;
             }
             Label("현장 기록",48,462,804,48,26,Muted); Label(title,48,532,804,64,40,Paper);
-            Paragraph(body,622,state.Crowd.Step==CrowdStoryStep.Panic?430:550,28);
+            Paragraph(state.Script(body),622,state.Crowd.Step==CrowdStoryStep.Panic?430:550,28);
             if(state.Crowd.Step==CrowdStoryStep.Panic)
             {
                 Choice(0,"가방을 놓고 몸을 틀어 빠져나온다","소지품 일부를 잃지만 부상을 피한다",1100,()=>Apply(state.ChooseCrowdResponse(true,definitions)));

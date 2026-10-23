@@ -13,6 +13,15 @@ namespace VanishingDays
         public CrowdStoryProgress Crowd=new CrowdStoryProgress();
         public string LastRadioBroadcastId="";
         public bool HasActiveCrowdIncident => Crowd!=null && Crowd.Step>=CrowdStoryStep.Panic && Crowd.Step<CrowdStoryStep.Completed;
+        // Story dialogue names the protagonist with the player's nickname. "(이)" after the
+        // placeholder follows the final consonant: 재현 → 재현이라고, 민수 → 민수라고.
+        public string Script(string text)
+        {
+            string name=string.IsNullOrEmpty(PlayerNickname)?ProtagonistScriptName:PlayerNickname;
+            char last=name.Length>0?name[name.Length-1]:' ';
+            bool batchim=last>='가' && last<='힣' && (last-'가')%28!=0;
+            return (text??"").Replace("{PlayerNickname}(이)",name+(batchim?"이":"")).Replace("{PlayerNickname}",name);
+        }
         public bool IsLocationUnlocked(string id,SurvivalDefinitions data)
         {
             var location=data.Location(id);
@@ -23,7 +32,7 @@ namespace VanishingDays
         {
             if(!CanApproachCrowd(data)) return "지금은 배분 구역에 접근할 수 없다.";
             Crowd.Step=CrowdStoryStep.Observing;
-            return Report(data.radioStory.observe);
+            return Report(Script(data.radioStory.observe));
         }
         public string ApproachCrowd(SurvivalDefinitions data)
         {
@@ -31,7 +40,7 @@ namespace VanishingDays
             // Dialogue consumes no hours: travel decides day/night before entry.
             // The guaranteed rescue cannot kill a starving player through forced time ticks.
             Story.CrowdIncidentStarted=true; Crowd.Step=CrowdStoryStep.Panic;
-            return Report(data.radioStory.panic);
+            return Report(Script(data.radioStory.panic));
         }
         public string ChooseCrowdResponse(bool dropBag,SurvivalDefinitions data)
         {
@@ -55,14 +64,14 @@ namespace VanishingDays
             if(IsGameOver || PendingEncounter!=null || !HasActiveCrowdIncident) return "현재 이어갈 사건이 없다.";
             switch(Crowd.Step)
             {
-                case CrowdStoryStep.Rescue: Crowd.Step=CrowdStoryStep.Disappearance; return Report(data.radioStory.disappearance);
-                case CrowdStoryStep.Disappearance: Crowd.Step=CrowdStoryStep.Introduction; return Report(data.radioStory.introduction);
+                case CrowdStoryStep.Rescue: Crowd.Step=CrowdStoryStep.Disappearance; return Report(Script(data.radioStory.disappearance));
+                case CrowdStoryStep.Disappearance: Crowd.Step=CrowdStoryStep.Introduction; return Report(Script(data.radioStory.introduction));
                 case CrowdStoryStep.Introduction:
                     bool condition=CurrentLocation=="supply_site" && Story.SupplyRumorUnlocked && Story.HasHeardSPBroadcast && Story.CrowdIncidentStarted;
                     if(!Story.CompleteDongrimRescue(condition)) return "첫 만남의 진행 조건을 확인할 수 없다.";
                     Story.CrowdIncidentResolved=true; Story.DongrimContactHintReceived=true;
                     Crowd.Step=CrowdStoryStep.Completed;
-                    return Report(data.radioStory.completed);
+                    return Report(Script(data.radioStory.completed));
                 default:return "먼저 어떻게 버틸지 선택해야 한다.";
             }
         }

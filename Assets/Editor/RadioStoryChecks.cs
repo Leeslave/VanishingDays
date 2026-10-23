@@ -60,6 +60,7 @@ namespace VanishingDays.Editor
                 s.ContinueCrowdStory(data); check(s.Crowd.Step==CrowdStoryStep.Disappearance && !s.Story.HasMetDongrim,"Disappearance step/gate wrong.");
                 s.ContinueCrowdStory(data); check(s.Crowd.Step==CrowdStoryStep.Introduction && !s.Story.HasMetDongrim,"Introduction completed early.");
                 s.ContinueCrowdStory(data); check(s.Story.HasMetDongrim && s.Story.DongrimRescueCompleted && s.Story.CrowdIncidentResolved && s.Story.DongrimContactHintReceived && s.CanAct,"Meeting did not complete/release survival loop.");
+                check(!s.journal.Exists(x=>x.Contains("{PlayerNickname}")) && s.journal.Exists(x=>x.Contains("저는 안재현이라고 합니다")),"Script name placeholder leaked or missed fallback.");
                 check(s.PlayerNickname=="" && s.ProtagonistScriptName=="안재현" && !s.Story.JoinedLiberationFront && !s.Story.HasMetJiwoo && !s.Story.HasMetSeokhyeon,"Meeting modified profile or jumped to P1-B.");
                 check(s.hour==hour && s.day==1 && s.RandomState==rng,"Mandatory scene forced time/RNG.");
                 int journal=s.journal.Count; s.ContinueCrowdStory(data); s.ApproachCrowd(data); s.ChooseCrowdResponse(!drop,data);
@@ -69,6 +70,8 @@ namespace VanishingDays.Editor
             s=AtSite(data); s.Vitals.CurrentHP=1; s.Vitals.Hunger=100; s.ApproachCrowd(data); s.ChooseCrowdResponse(false,data);
             s.ContinueCrowdStory(data); s.ContinueCrowdStory(data); s.ContinueCrowdStory(data);
             check(!s.IsGameOver && s.Vitals.CurrentHP==1 && s.Story.HasMetDongrim,"Mandatory scene killed a 1-HP starving player.");
+            s.PlayerNickname="민수"; check(s.Script("{PlayerNickname}(이)라고")=="민수라고","Vowel-final nickname particle wrong.");
+            s.PlayerNickname="재현"; check(s.Script("{PlayerNickname}: {PlayerNickname}(이)라고")=="재현: 재현이라고","Consonant-final nickname particle wrong.");
             return count;
         }
 #if UNITY_EDITOR
@@ -89,6 +92,7 @@ namespace VanishingDays.Editor
                     if(expected==CrowdStoryStep.Panic) s.ChooseCrowdResponse(drop,data); else s.ContinueCrowdStory(data);
                 }
                 if(!s.Story.HasMetDongrim || s.Story.JoinedLiberationFront) throw new Exception("Restored meeting completion failed.");
+                if(!s.journal.Exists(x=>x.Contains("저는 기록자닉네임이라고 합니다"))) throw new Exception("Meeting did not use the restored nickname.");
             }
             var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site"); legacy.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(legacy));
