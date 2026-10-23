@@ -334,7 +334,8 @@ namespace VanishingDays
         }
         void EncounterPage()
         {
-            Hero("누군가 물품을 요구한다"); Paragraph(state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?",790,180);
+            // lastReport holds the search/arrival result that triggered this encounter.
+            Hero("누군가 물품을 요구한다"); Paragraph(state.lastReport+"\n\n"+state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?",790,240);
             Choice(0,"순순히 내어준다","물품을 내어주고 부상을 피한다",1060,()=>Apply(state.ResolveEncounter(false,definitions)));
             Choice(1,"저항한다","빠져나갈 수도 있지만 부상을 입을 수 있다",1190,()=>Apply(state.ResolveEncounter(true,definitions)));
         }

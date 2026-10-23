@@ -171,8 +171,10 @@ namespace VanishingDays
             var b=data.TEMP_BALANCE; bool night=IsNight(b);
             double chance=inside?(night?b.nightInsideChance:b.dayInsideChance):(night?b.nightStreetChance:b.dayStreetChance);
             if(Roll(random)>=chance) return;
-            if(night) { DamageAndInjure(Math.Max(1,b.nightDamage-Defense(data)),data); Note("전문 약탈꾼에게 발견됐다. 부상을 입고 물품을 잃었다. "+LoseSupplies(Backpack,b.nightLoss,data)); }
-            else { PendingEncounter=new Encounter { kind="hungry",context=inside?"건물 안":"길거리" }; Note(PendingEncounter.context+"에서 굶주린 사람이 물품을 요구한다."); }
+            // Keep the search/arrival result on screen; the encounter itself is still journaled separately.
+            string before=lastReport;
+            if(night) { DamageAndInjure(Math.Max(1,b.nightDamage-Defense(data)),data); Note("전문 약탈꾼에게 발견됐다. 부상을 입고 물품을 잃었다. "+LoseSupplies(Backpack,b.nightLoss,data)); lastReport=before+"\n\n"+lastReport; }
+            else { PendingEncounter=new Encounter { kind="hungry",context=inside?"건물 안":"길거리" }; Note(PendingEncounter.context+"에서 굶주린 사람이 물품을 요구한다."); lastReport=before; }
         }
         public string ResolveEncounter(bool resist,SurvivalDefinitions data,Func<double> random=null)
         {
