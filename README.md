@@ -13,6 +13,8 @@ Windows 실행 파일: `Builds/Windows/VanishingDays.exe` (로컬 빌드 결과�
 
 Unity 메뉴 `Vanishing Days/Build Windows prototype`으로 다시 빌드합니다. 에디터에서 본편만 테스트할 때는 Prototype 오브젝트의 **Skip Opening In Editor**를 켭니다. 일반 빌드는 이 옵션을 무시합니다.
 
+한글 UI는 `Assets/Resources/Fonts/NanumGothic-Regular.ttf`를 빌드에 포함해 사용합니다. 실행 PC의 시스템 폰트 설치 여부와 관계없이 오프닝·닉네임·본편에 같은 폰트를 적용합니다. 나눔고딕의 출처는 [Google Fonts](https://github.com/google/fonts/tree/main/ofl/nanumgothic)이며 배포 라이선스는 같은 폴더의 `OFL.txt`에 포함합니다. 빌드 전 폰트 데이터 포함 설정과 한글 글리프를 검사합니다.
+
 ## 생존 플레이
 
 - **생활**: 집에서 요리·식사·휴식. 물과 가스는 현 P0 구간에서 충분히 제공됩니다.

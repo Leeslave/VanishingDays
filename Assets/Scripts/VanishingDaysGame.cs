@@ -34,8 +34,8 @@ namespace VanishingDays
             Application.targetFrameRate=60; Application.runInBackground=true;
             definitions=SurvivalDefinitions.Load();
             store=new SessionSaveStore(Path.Combine(Application.persistentDataPath,"vanishing-days-v03.json"),definitions);
-            font=Font.CreateDynamicFontFromOSFont(new[]{"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans CJK KR","Arial"},20);
-            if(font==null) font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font=Resources.Load<Font>("Fonts/NanumGothic-Regular");
+            if(font==null) throw new InvalidOperationException("Bundled Korean font is missing: Resources/Fonts/NanumGothic-Regular.ttf");
             art=Resources.Load<Texture2D>("Art/SeoulErasure");
             var canvas=new GameObject("Diary Interface",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster)); canvas.transform.SetParent(transform,false);
             canvas.GetComponent<Canvas>().renderMode=RenderMode.ScreenSpaceOverlay;
@@ -396,6 +396,12 @@ namespace VanishingDays
             try
             {
                 yield return new WaitForSeconds(4f);
+                const string koreanGlyphs="소멸일지 한글 기록자 가나다 힣";
+                font.RequestCharactersInTexture(koreanGlyphs,26,FontStyle.Normal);
+                foreach(char character in koreanGlyphs)
+                    if(character!=' ' && (!font.GetCharacterInfo(character,out var glyph,26,FontStyle.Normal) || glyph.glyphWidth<=0))
+                        throw new InvalidOperationException("Bundled Korean glyph failed to render: "+character);
+                Debug.Log("VD_KOREAN_FONT_OK: bundled font rasterized Korean glyphs in "+(Application.isEditor?"Editor Play":"Windows Player"));
                 if(openingView==null) throw new InvalidOperationException("Opening did not start.");
                 while(openingView!=null)
                 {
