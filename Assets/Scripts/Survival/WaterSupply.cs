@@ -6,6 +6,18 @@ namespace VanishingDays
     {
         public int HydrationHours, Thirst;
         public bool UnlimitedWater => Difficulty==GameDifficulty.EASY;
+        public int AccessibleWater => Backpack.Count("water")+(CurrentLocation=="home"?HomeStorage.Count("water"):0);
+        public bool NeedsWaterWarning => !UnlimitedWater && (Thirst>=60 || AccessibleWater==0);
+        public bool NeedsSleepWarning => Sleepiness>=60;
+        public bool CanDrink => CanAct && !UnlimitedWater && AccessibleWater>0 && (Thirst>0 || HydrationHours>0);
+        public string DrinkWater()
+        {
+            if(!CanDrink) return "지금 마실 수 있는 생수가 없거나 아직 목마르지 않다.";
+            var source=CurrentLocation=="home" && HomeStorage.Count("water")>0?HomeStorage:Backpack;
+            source.Remove("water",1); Thirst=0; HydrationHours=0;
+            RecordFact("story","생수 1병을 마셔 목마름을 해소했다.");
+            return Report("생수 1병(500ml)을 마셨다. 목마름 0 / 100 · 다음 식수까지 6시간.");
+        }
         public ItemStack[] CookingIngredients(RecipeDefinition recipe) => UnlimitedWater?Array.FindAll(recipe.ingredients,x=>x.id!="water"):recipe.ingredients;
         public bool CanCook(RecipeDefinition recipe,SurvivalDefinitions data) => CanAct && CurrentLocation=="home" && recipe!=null && HomeStorage.Count("burner")>0 && HomeStorage.Has(CookingIngredients(recipe));
         void TickWater(SurvivalDefinitions data)

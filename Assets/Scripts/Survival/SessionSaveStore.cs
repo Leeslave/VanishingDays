@@ -41,6 +41,7 @@ namespace VanishingDays
                     if(restored?.schemaVersion==9) { restored.Thirst=restored.UnlimitedWater?0:Math.Max(0,Math.Min(100,restored.HydrationHours*10)); restored.schemaVersion=10; }
                     if(restored?.schemaVersion==10) { restored.UpgradeDailyLife(definitions); restored.schemaVersion=11; }
                     if(restored?.schemaVersion==11) { restored.UpgradeCrafting(definitions); restored.schemaVersion=12; }
+                    restored?.UpgradeOnboarding();
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
                     Validate(restored,definitions,legacyVitals);
@@ -58,6 +59,7 @@ namespace VanishingDays
             if(s.InjuryRestProgress<0 || s.InjuryRestProgress>=data.TEMP_BALANCE.injuryRestHours || s.MedicalLootVersion<0 || s.MedicalLootVersion>1) throw new InvalidDataException("Invalid recovery progress.");
             if(s.HydrationHours<0 || s.HydrationHours>=data.TEMP_BALANCE.waterIntervalHours || s.UnlimitedWater && s.HydrationHours!=0) throw new InvalidDataException("Invalid water progress.");
             if(s.Thirst<0 || s.Thirst>100 || s.UnlimitedWater && s.Thirst!=0) throw new InvalidDataException("Invalid thirst.");
+            if(s.OnboardingVersion!=1 || s.TutorialStep<0 || s.TutorialStep>6 || s.TutorialViewed<0 || (s.TutorialViewed&~60)!=0 || s.TutorialActive && s.TutorialStep==6) throw new InvalidDataException("Invalid onboarding progress.");
             ValidateInventory(s.Backpack,data); ValidateInventory(s.HomeStorage,data);
             foreach(var location in data.locations)
             {

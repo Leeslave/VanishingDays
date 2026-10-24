@@ -71,6 +71,7 @@ namespace VanishingDays
         {
             if(!CanAct || CurrentLocation!="home" || NeighborLastDay>=day || NeighborStage==2) return "오늘의 안부는 이미 나눴다. 답이 없었다면 문 앞에서 직접 확인할 수 있다.";
             NeighborLastDay=day; NeighborGreetings++;
+            NeighborIntroductionSeen=true;
             if(NeighborStage==0) { NeighborStage=1; RecordFact("neighbor","옆집 노인에게 반찬 그릇을 돌려드렸다. 벽을 두 번 두드려 안부를 나누기로 했다."); return Report(data.lifeStory.neighborFirst); }
             if(NeighborGreetings==3) { NeighborStage=2; RecordFact("neighbor","벽을 두 번 두드렸지만 오늘은 답이 없었다. 아직 이유는 알 수 없다."); return Report(data.lifeStory.neighborQuiet); }
             string text=data.lifeStory.greetings[(NeighborGreetings-2)%data.lifeStory.greetings.Length]; RecordFact("neighbor",text); return Report(text);

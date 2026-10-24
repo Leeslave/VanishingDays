@@ -88,6 +88,7 @@ namespace VanishingDays
                 if(location.loot!=null) foreach(var stack in location.loot) progress.remaining.Add(stack.id,stack.amount);
                 state.Locations.Add(progress);
             }
+            state.UpgradeOnboarding();
             state.Note("기록지 #001. 나는 오늘도 살아남아야 한다."); return state;
         }
         public void UpgradeMedicalLoot(SurvivalDefinitions data)

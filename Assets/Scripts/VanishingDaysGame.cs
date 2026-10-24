@@ -11,7 +11,7 @@ using UnityEngine.UI;
 
 namespace VanishingDays
 {
-    public class VanishingDaysGame : MonoBehaviour
+    public partial class VanishingDaysGame : MonoBehaviour
     {
         [SerializeField, Tooltip("에디터 테스트 전용: 오프닝을 건너뜁니다.")]
         bool skipOpeningInEditor;
@@ -49,6 +49,7 @@ namespace VanishingDays
             font=Resources.Load<Font>("Fonts/NanumGothic-Regular");
             if(font==null) throw new InvalidOperationException("Bundled Korean font is missing: Resources/Fonts/NanumGothic-Regular.ttf");
             art=Resources.Load<Texture2D>("Art/SeoulErasure");
+            survivalArt=Resources.Load<Texture2D>("Art/SurvivalAtlas");
             var canvas=new GameObject("Diary Interface",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster)); canvas.transform.SetParent(transform,false);
             canvas.GetComponent<Canvas>().renderMode=RenderMode.ScreenSpaceOverlay;
             var scaler=canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(900,1600); scaler.screenMatchMode=CanvasScaler.ScreenMatchMode.Expand;
@@ -59,6 +60,8 @@ namespace VanishingDays
             if(module!=null && module.inputOverride==null) module.inputOverride=EventSystem.current.gameObject.AddComponent<OpeningInputBridge>();
             state=SurvivalState.NewGame(GameDifficulty.NORMAL,definitions);
 #if UNITY_EDITOR || VD_UI_VERIFICATION
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdTutorial")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/TutorialVerification/session.json"),definitions); StartCoroutine(SmokeTutorial()); return; }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSupply")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/WaterAccessVerification/session.json"),definitions); StartCoroutine(SmokeWaterAccess()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdCraft")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/CraftingVerification/session.json"),definitions); StartCoroutine(SmokeCrafting()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdLife")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DailyLifeVerification/session.json"),definitions); StartCoroutine(SmokeDailyLife()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdThirst")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/ThirstVerification/session.json"),definitions); StartCoroutine(SmokeThirst()); return; }
@@ -95,7 +98,12 @@ namespace VanishingDays
             var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=rect.GetComponent<Image>(); button.interactable=enabled;
             var colors=button.colors; colors.highlightedColor=new Color(1.3f,1.25f,1.1f); colors.pressedColor=new Color(.75f,.7f,.6f); colors.disabledColor=new Color(.5f,.5f,.5f,.65f); button.colors=colors;
             button.onClick.AddListener(()=>click());
-            Label(text,18,12,w-36,h-20,h<64?22:26,enabled?(accent?Amber:Paper):Muted,rect);
+            int icon=ButtonIcon(text);
+            bool illustrated=survivalArt!=null && icon>=0 && w>=180 && h>=48;
+            if(illustrated) ArtIcon(icon,10,8,h>=80?62:40,h>=80?62:40,rect);
+            float inset=illustrated?(h>=80?84:60):18;
+            Label(text,inset,12,w-inset-14,h-20,h<64?22:26,enabled?(accent?Amber:Paper):Muted,rect);
+            Box("Binding",0,0,3,h,accent?Amber:new Color32(73,88,77,255),rect);
             Box("Rule",0,h-1,w,1,new Color32(61,73,67,255),rect);
         }
         void Picture(float x,float y,float w,float h)
@@ -146,8 +154,12 @@ namespace VanishingDays
                 if(state.NextDiary!=null) { DiaryPage(true); return; }
                 if(state.HasPendingMorning) { selectedMorningDay=0; MorningPage(); return; }
             }
+            if(neighborInvitationPending && page=="home" && state.CurrentLocation=="home" && state.NeedsNeighborIntroduction && !state.TutorialActive) { NeighborIntroductionPage(); return; }
+            int topic=page=="water"?2:page=="inventory"?3:page=="map"?4:page=="sleep"?5:0;
+            if(state.ViewTutorialTopic(topic)) Save();
             switch(page)
             {
+                case "tutorial": TutorialPage(); break;
                 case "map": Map(); break;
                 case "location": LocationDetails(); break;
                 case "radio": RadioPage(); break;
@@ -156,6 +168,7 @@ namespace VanishingDays
                 case "kitchen": Kitchen(); break;
                 case "craft": CraftingPage(); break;
                 case "sleep": SleepPage(); break;
+                case "water": WaterPage(); break;
                 case "diaries": DiaryPage(false); break;
                 case "morning": MorningPage(); break;
                 case "neighbor": NeighborPage(); break;
@@ -166,6 +179,8 @@ namespace VanishingDays
                 default: if(state.CurrentLocation=="home") Home(); else Explore(); break;
             }
             Label("VANISHING DAYS  /  행동 후 자동 저장",48,1563,804,26,16,Muted);
+            TutorialReturnLink();
+            VitalsNotice();
         }
         void Header()
         {
@@ -186,11 +201,13 @@ namespace VanishingDays
             Box("Mental current",48,343,804*(state.Vitals.CurrentMental/(float)state.Vitals.BaseMaxMental),12,new Color32(129,161,177,255));
             string[] names={"생활","외출","물품","기록"}, ids={"home","map","inventory","journal"};
             for(int i=0;i<4;i++) { string id=ids[i]; Button(names[i],48+i*206,362,186,62,()=>{page=id; message=""; Render();},state.CanAct && !state.HasLifeNotice,page==id); }
+            SurvivalWarning();
         }
         void Dock()
         {
             Box("Dock",48,1412,804,138,Panel);
-            Label(state.WaterStatus(definitions),66,1422,768,38,21,Muted);
+            Label(state.WaterStatus(definitions),66,1422,560,38,19,state.NeedsWaterWarning?Amber:Muted);
+            Button("식수 관리",632,1416,202,48,()=>{page="water";message="";Render();},state.CanAct && !state.HasLifeNotice,true);
             bool home=state.CurrentLocation=="home";
             Button(home?(state.IsNight(definitions.TEMP_BALANCE)?"아침까지 머무른다":"밤까지 머무른다"):"집으로 돌아간다",66,1477,420,58,()=>{if(home) Apply(state.Rest(definitions,true)); else SelectLocation("home");},state.CanAct && !state.HasLifeNotice,true);
             Button("제작",502,1477,190,58,()=>{page="craft";message="";Render();},home && state.CanAct && !state.HasLifeNotice);
@@ -198,7 +215,10 @@ namespace VanishingDays
         }
         void Hero(string title)
         {
-            Picture(48,454,804,220); Label(title,48,702,804,60,36,Paper);
+            if(survivalArt!=null && state.CurrentLocation=="home") AtlasPicture(48,454,804,220,new UnityEngine.Rect(0,.59f,1,220f/804));
+            else Picture(48,454,804,220);
+            Box("Photo edge",48,670,804,4,Amber);
+            Label(title,48,702,804,60,36,Paper);
         }
         void Choice(int index,string title,string detail,float y,Action action,bool enabled=true)
         {
@@ -209,11 +229,12 @@ namespace VanishingDays
         {
             Hero("송파구 자취방");
             Label("집: 스팸 "+state.HomeStorage.Count("spam")+" · 참치 "+state.HomeStorage.Count("tuna")+" · 쌀 "+definitions.Quantity("rice",state.HomeStorage.Count("rice")),48,768,804,34,23,Muted);
-            Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,820,150);
+            if(state.TutorialActive) TutorialHomeCard();
+            else Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,820,150);
             Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
             Choice(1,"잠을 잔다","하루 6시간 필요 · 수면 시간을 선택한다",1122,()=>{page="sleep";message="";Render();});
             Choice(2,state.Story.HasRadio?"라디오를 켠다":"제작대를 확인한다",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"음식 · 무기 · 생활용품을 만든다",1234,()=>{if(state.Story.HasRadio) OpenRadio(); else {page="craft"; message=""; Render();}});
-            Button("옆집 안부",48,1342,390,48,()=>{page="neighbor";message="";Render();});
+            Button("옆집 안부"+(state.NeighborStage==0?" · 첫 인사":""),48,1342,390,48,()=>{state.NeighborIntroductionSeen=true;neighborInvitationPending=false;Save();page="neighbor";message="";Render();},state.CanAct,state.NeighborStage==0);
             Button("동행 약속",462,1342,390,48,()=>{page="companion";message="";Render();},state.CompanionAvailable);
         }
         void Explore()
@@ -369,7 +390,7 @@ namespace VanishingDays
             {
                 foreach(var recipe in definitions.recipes)
                 {
-                    Label(recipe.name,18,y,768,40,28,Paper,content);
+                    ArtIcon(7,18,y,42,42,content); Label(recipe.name,72,y,714,40,28,Paper,content);
                     Label(Materials(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간",18,y+46,768,58,22,Muted,content);
                     Button("조리한다",18,y+106,366,54,()=>Apply(state.Cook(recipe.id,definitions),"craft"),state.CanCook(recipe,definitions),true,content);
                     Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),402,y+106,384,54,()=>Apply(state.Eat(recipe.result,definitions),"craft"),state.Backpack.Count(recipe.result)>0 || state.CurrentLocation=="home" && state.HomeStorage.Count(recipe.result)>0,false,content);
@@ -383,7 +404,7 @@ namespace VanishingDays
                 {
                     bool installed=recipe.facility && state.HasFacility(recipe.id);
                     bool facilityReady=string.IsNullOrEmpty(recipe.requiresFacility) || state.HasFacility(recipe.requiresFacility);
-                    Label(recipe.name,18,y,768,40,28,Paper,content);
+                    ArtIcon(RecipeIcon(recipe.id),18,y,42,42,content); Label(recipe.name,72,y,714,40,28,Paper,content);
                     Label(recipe.description,18,y+46,768,60,22,Muted,content);
                     Label((recipe.ingredients.Length==0?"재료 소모 없음 · 집수 작업":Materials(recipe.ingredients))+" · "+recipe.hours+"시간",18,y+108,768,60,22,Muted,content);
                     string status=installed?"설치 완료":!facilityReady?"필요 설비: "+definitions.crafting.Find(recipe.requiresFacility).name:state.CanCraft(recipe.id,definitions)?"제작 가능":"집의 재료 부족";
@@ -419,7 +440,7 @@ namespace VanishingDays
             {
                 int pack=state.Backpack.Count(item.id), home=state.HomeStorage.Count(item.id); bool equipped=state.Equipment.Contains(item.id);
                 if(pack+home==0 && !equipped) continue;
-                Label(item.name+(equipped?" · 착용 중":""),18,y,768,40,28,Paper,content);
+                ArtIcon(ItemIcon(item.id),18,y,44,44,content); Label(item.name+(equipped?" · 착용 중":""),76,y,710,40,28,Paper,content);
                 Label("소지 "+definitions.Quantity(item.id,pack)+" / 집 "+definitions.Quantity(item.id,home)+(item.id=="water"?" · 500ml · 식수 자동 소비":item.injuriesTreated>0?" · 치료 "+definitions.TEMP_BALANCE.treatmentHours+"시간 · 체력 +"+item.healing:""),18,y+48,768,36,23,Muted,content);
                 float buttonX=18;
                 bool canTransfer=item.id!="burner" && atHome;
@@ -439,7 +460,8 @@ namespace VanishingDays
                     Button("보관",buttonX,y+158,230,52,()=>Apply(state.Transfer(item.id,false,TransferQuantity(item.id),definitions),"inventory"),pack>0,false,content); buttonX+=250;
                 }
                 float actionY=y+(canTransfer?158:96);
-                if(item.injuriesTreated>0) Button("치료",buttonX,actionY,230,52,()=>Apply(state.TreatInjury(item.id,definitions),"inventory"),state.CanAct && state.Vitals.Injuries.Count>0 && (pack>0 || (atHome && home>0)),true,content);
+                if(item.id=="water") Button("마시기",buttonX,actionY,230,52,()=>Apply(state.DrinkWater(),"inventory"),state.CanDrink,true,content);
+                else if(item.injuriesTreated>0) Button("치료",buttonX,actionY,230,52,()=>Apply(state.TreatInjury(item.id,definitions),"inventory"),state.CanAct && state.Vitals.Injuries.Count>0 && (pack>0 || (atHome && home>0)),true,content);
                 else if(item.consumable) Button("먹기",buttonX,actionY,230,52,()=>Apply(state.Eat(item.id,definitions),"inventory"),pack>0 || (atHome && home>0),true,content);
                 else if(item.strength>0 || item.defense>0) Button(equipped?"벗기":"착용",buttonX,actionY,230,52,()=>Apply(state.Equip(item.id,definitions),"inventory"),true,true,content);
                 y+=canTransfer?240:178;
@@ -614,7 +636,8 @@ namespace VanishingDays
         }
         void Menu()
         {
-            Label("기록을 정리한다",48,470,804,60,36,Paper); Paragraph(ReportText,560,170);
+            Label("기록을 정리한다",48,470,804,60,36,Paper); Paragraph(ReportText,560,140);
+            Button(state.TutorialActive?"생존 안내 이어 보기":"처음 생존 안내",48,708,804,52,()=>{if(!state.TutorialActive)state.BeginTutorial();page="tutorial";message="";Save();Render();},state.CanAct);
             Button("제작 · 음식 / 무기 / 생활용품",48,780,804,84,()=>{page="craft";message="";Render();},state.CurrentLocation=="home");
             Button("기록 저장",48,890,390,84,()=>{Save();message="현재 기록을 저장했다.";Render();},true,true);
             Button("저장 기록 불러오기",462,890,390,84,Load,store.Exists);
@@ -647,15 +670,24 @@ namespace VanishingDays
             var difficulty=openingView.SelectedDifficulty;
             openingView.OnOpeningCompleted-=StartMainGame; openingView.gameObject.SetActive(false); Destroy(openingView.gameObject); openingView=null;
             state=SurvivalState.NewGame(difficulty,definitions); state.PlayerNickname=playerNickname; state.Story.OpeningCompleted=true;
+            state.BeginTutorial(); neighborInvitationPending=false; vitalsNotice=""; waterWasWarning=sleepWasWarning=false;
             transferQuantities.Clear(); inventoryScrollOffset=0; inventoryScroll=null;
             neighborhoodPositioned=false; neighborhoodScroll=null;
-            confirmRestart=false; page="home"; message=""; Save(); Render();
+            confirmRestart=false; page="tutorial"; message=""; Save(); Render();
         }
-        void Apply(string text,string next="home") { message=text; page=next; Save(); Render(); }
+        bool waterWasWarning,sleepWasWarning;
+        void Apply(string text,string next="home")
+        {
+            vitalsNotice="";
+            if(state.NeedsWaterWarning && !waterWasWarning) vitalsNotice="마실 물이 부족하다. 하단 식수 관리에서 물을 확보하거나 마시자.";
+            if(state.NeedsSleepWarning && !sleepWasWarning) vitalsNotice+=(vitalsNotice.Length>0?"\n":"")+"졸림이 높다. 집에서 잠을 자야 한다.";
+            waterWasWarning=state.NeedsWaterWarning; sleepWasWarning=state.NeedsSleepWarning;
+            message=text; page=next; Save(); Render();
+        }
         void Save() { try { store.Save(state); } catch(Exception e) { Debug.LogWarning("Save failed: "+e.Message); message="기록을 저장하지 못했다. 저장 공간을 확인해 주세요."; } }
         void Load()
         {
-            if(store.TryLoad(out var restored,out var error)) { state=restored; confirmRestart=false; page="home"; message=""; Render(); }
+            if(store.TryLoad(out var restored,out var error)) { state=restored; confirmRestart=false; neighborInvitationPending=state.NeedsNeighborIntroduction; page=state.TutorialActive?"tutorial":"home"; message="";vitalsNotice="";waterWasWarning=sleepWasWarning=false; Render(); }
             else { Debug.LogWarning("Load failed: "+error); page="continue"; message="남겨 둔 기록을 읽을 수 없다. 기존 파일은 보관돼 있다."; Render(); }
         }
 #if UNITY_EDITOR || VD_UI_VERIFICATION
@@ -685,7 +717,7 @@ namespace VanishingDays
             ClickGameButton("제작");ClickGameButton("생활용품");make("workbench",false);make("water_filter",false);make("water_collector",false);make("collect_water",false);
             int water=state.HomeStorage.Count("water");make("purify_water",false);
             if(state.NextDiary!=null)ClickGameButton("읽고 계속");
-            if(state.HomeStorage.Count("raw_water")!=2 || state.HomeStorage.Count("water")!=water+1 || craftTab!=2)throw new InvalidOperationException("Water crafting or tab restoration after diary failed.");
+            if(state.HomeStorage.Count("raw_water")!=2 || state.HomeStorage.Count("water")!=water+3 || craftTab!=2)throw new InvalidOperationException("Water crafting or tab restoration after diary failed.");
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"WATER-SURVIVAL.png"));
             state.Vitals.Hunger=0;make("bedroll",false);make("door1",true);
             if(!state.HasFacility("bedroll") || state.SleepMentalRecovery!=3 || state.DoorLevel!=1)throw new InvalidOperationException("Living utility effects/door upgrade failed.");
@@ -972,9 +1004,15 @@ namespace VanishingDays
                     }
                     else OpeningButton(flow.Current.kind=="Question"?"예":flow.Current.button).onClick.Invoke();
                 }
-                if(state.PlayerNickname!="기록자A1" || page!="home") throw new InvalidOperationException("Main game/profile handoff failed.");
+                if(state.PlayerNickname!="기록자A1" || page!="tutorial" || !state.TutorialActive) throw new InvalidOperationException("Main game/profile/tutorial handoff failed.");
+                ClickGameButton("안내 건너뛰기");ClickGameButton("지금은 생활부터");
                 var restored=JsonUtility.FromJson<SurvivalState>(File.ReadAllText(SavePath));
                 if(restored.PlayerNickname!=state.PlayerNickname) throw new InvalidOperationException("Nickname save round trip failed.");
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdOpeningOnly")>=0)
+                {
+                    Debug.Log("VD_TUTORIAL_OPENING_UI_OK: actual opening, nickname, tutorial handoff, skip, neighbor invitation and profile save.");
+                    Application.Quit();yield break;
+                }
                 yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MAIN.png"));
                 if(state.Vitals.CurrentHP!=500 || state.CurrentLocation!="home" || state.Story.HasRadio || state.HomeStorage.Count("spam")!=5) throw new InvalidOperationException("v0.3 starting state mismatch.");
                 page="kitchen"; Render(); yield return null;
@@ -988,7 +1026,7 @@ namespace VanishingDays
                 page="map"; Render(); yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"MAP-INITIAL.png"));
                 if(root.GetComponentInChildren<NeighborhoodMapGraphic>().VisibleLocations.Length!=2) throw new InvalidOperationException("New game revealed locked routes.");
                 Apply(state.Travel("store",definitions,()=>1)); Apply(state.Search(definitions,()=>1));
-                if(!state.IsLocationUnlocked("empty_house",definitions) || state.IsLocationUnlocked("school",definitions) || state.LootPercent("store",definitions)!=100) throw new InvalidOperationException("First route/loot unlock failed.");
+                if(!state.IsLocationUnlocked("empty_house",definitions) || state.IsLocationUnlocked("school",definitions) || state.Locations.Find(x=>x.id=="store").searches!=1 || state.LootPercent("store",definitions)<=0 || state.LootPercent("store",definitions)>=100) throw new InvalidOperationException("First route/finite-loot unlock failed.");
                 Apply(state.Travel("empty_house",definitions,()=>1)); Apply(state.Search(definitions,()=>1)); Apply(state.Travel("home",definitions,()=>1));
                 state.Vitals.Hunger=0; state.hour=8;
                 page="map"; Render(); yield return null; yield return new WaitForEndOfFrame();

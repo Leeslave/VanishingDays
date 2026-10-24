@@ -80,6 +80,7 @@ namespace VanishingDays.Editor
         {
             var data=SurvivalDefinitions.Load(); int count=ValidateData(data);
             string path=Path.GetFullPath("Builds/Validation/radio-story-save-test.json"); var saves=new SessionSaveStore(path,data);
+            foreach(string file in new[]{path,path+".bak",path+".tmp"}) if(File.Exists(file)) File.Delete(file);
             foreach(bool drop in new[]{true,false})
             {
                 var s=AtSite(data); s.PlayerNickname="기록자닉네임"; s.Backpack.Add("tuna",3); s.ObserveSupplySite(data);

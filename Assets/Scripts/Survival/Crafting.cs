@@ -29,7 +29,7 @@ namespace VanishingDays
             {
                 if(recipe==null || string.IsNullOrWhiteSpace(recipe.id) || !ids.Add(recipe.id) || string.IsNullOrWhiteSpace(recipe.name) || string.IsNullOrWhiteSpace(recipe.description) || recipe.hours<1 || recipe.category!="weapons" && recipe.category!="living" || recipe.ingredients==null || !recipe.facility && (data.Item(recipe.result)==null || recipe.amount<1)) throw new InvalidOperationException("Invalid crafting recipe.");
                 foreach(var cost in recipe.ingredients) if(cost==null || data.Item(cost.id)==null || cost.amount<1 || recipe.ingredients.Count(x=>x.id==cost.id)!=1) throw new InvalidOperationException("Invalid crafting ingredients.");
-                if(recipe.ingredients.Length==0 && recipe.id!="collect_water") throw new InvalidOperationException("Crafting requires materials.");
+                if(recipe.ingredients.Length==0 && recipe.id!="collect_water" && recipe.id!="gather_water") throw new InvalidOperationException("Crafting requires materials.");
                 if(!string.IsNullOrEmpty(recipe.requiresFacility) && (Find(recipe.requiresFacility)==null || !Find(recipe.requiresFacility).facility || recipe.requiresFacility==recipe.id)) throw new InvalidOperationException("Invalid crafting facility requirement.");
             }
         }
@@ -44,7 +44,7 @@ namespace VanishingDays
         public bool CanCraft(string id,SurvivalDefinitions data)
         {
             var recipe=data.crafting.Find(id);
-            return CanAct && CurrentLocation=="home" && recipe!=null && (!recipe.facility || !HasFacility(id)) && (string.IsNullOrEmpty(recipe.requiresFacility) || HasFacility(recipe.requiresFacility)) && HomeStorage.Has(recipe.ingredients);
+            return CanAct && CurrentLocation=="home" && recipe!=null && (id!="boil_water" || HomeStorage.Count("burner")>0) && (!recipe.facility || !HasFacility(id)) && (string.IsNullOrEmpty(recipe.requiresFacility) || HasFacility(recipe.requiresFacility)) && HomeStorage.Has(recipe.ingredients);
         }
         public string Craft(string id,SurvivalDefinitions data)
         {

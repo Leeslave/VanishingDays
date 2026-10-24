@@ -1,6 +1,31 @@
 {
   "recipes": [
     {
+      "id": "gather_water",
+      "name": "생활용수 모으기",
+      "category": "living",
+      "hours": 2,
+      "ingredients": [],
+      "amount": 2,
+      "result": "raw_water",
+      "description": "집 주변의 잔여 생활용수를 모아 혼탁한 물 2병을 확보한다. 설비·재료 없이 반복 가능. 반드시 끓이거나 정수해야 한다."
+    },
+    {
+      "id": "boil_water",
+      "name": "물 끓이기",
+      "category": "living",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "raw_water",
+          "amount": 2
+        }
+      ],
+      "amount": 2,
+      "result": "water",
+      "description": "부르스타로 혼탁한 물 2병을 끓여 식수 2병을 확보한다. 가스는 충분하며 정수기 없이도 가능하다."
+    },
+    {
       "id": "club",
       "name": "나무 곤봉",
       "category": "weapons",
@@ -291,12 +316,12 @@
       "id": "collect_water",
       "name": "집수통 물 회수",
       "category": "living",
-      "hours": 3,
+      "hours": 1,
       "ingredients": [],
-      "amount": 1,
+      "amount": 3,
       "result": "raw_water",
       "requiresFacility": "water_collector",
-      "description": "집수통에서 혼탁한 물 1병을 모은다. 마시기 전에 정수해야 한다."
+      "description": "집수통에 모인 혼탁한 물 3병을 1시간 동안 회수한다. 생활용수 수집보다 효율적이며 정수가 필요하다."
     },
     {
       "id": "purify_water",
@@ -306,13 +331,13 @@
       "ingredients": [
         {
           "id": "raw_water",
-          "amount": 1
+          "amount": 3
         }
       ],
-      "amount": 1,
+      "amount": 3,
       "result": "water",
       "requiresFacility": "water_filter",
-      "description": "혼탁한 물 1병을 생수 1병으로 정수한다. 완성한 물은 집에 보관된다."
+      "description": "혼탁한 물 3병을 1시간에 생수 3병으로 정수한다. 부르스타로 끓이는 것보다 효율적이다."
     },
     {
       "id": "make_bandage",
