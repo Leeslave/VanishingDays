@@ -1,0 +1,337 @@
+{
+  "recipes": [
+    {
+      "id": "club",
+      "name": "나무 곤봉",
+      "category": "weapons",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "club",
+      "description": "기초 무기 · 힘 +2. 상위 곤봉이나 창의 재료로 쓸 수 있다."
+    },
+    {
+      "id": "wrapped_club",
+      "name": "헝겊 곤봉",
+      "category": "weapons",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "club",
+          "amount": 1
+        },
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "tape",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "wrapped_club",
+      "description": "곤봉 강화 · 힘 +4. 나무 곤봉 1개를 사용한다."
+    },
+    {
+      "id": "nail_bat",
+      "name": "못 박힌 방망이",
+      "category": "weapons",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wrapped_club",
+          "amount": 1
+        },
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "cord",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "nail_bat",
+      "description": "곤봉 계열 상위 조합 · 힘 +6."
+    },
+    {
+      "id": "pipe_club",
+      "name": "쇠파이프 곤봉",
+      "category": "weapons",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "cord",
+          "amount": 1
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "pipe_club",
+      "description": "금속 계열 기초 조합 · 힘 +4."
+    },
+    {
+      "id": "scrap_spear",
+      "name": "고철 창",
+      "category": "weapons",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "club",
+          "amount": 1
+        },
+        {
+          "id": "scrap",
+          "amount": 2
+        },
+        {
+          "id": "cord",
+          "amount": 2
+        }
+      ],
+      "amount": 1,
+      "result": "scrap_spear",
+      "description": "창 계열 조합 · 힘 +5. 나무 곤봉을 재료로 사용한다."
+    },
+    {
+      "id": "machete",
+      "name": "손잡이 칼날",
+      "category": "weapons",
+      "hours": 3,
+      "ingredients": [
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "machete",
+      "requiresFacility": "workbench",
+      "description": "작업대 필요 · 힘 +7. 보강 칼날의 재료가 된다."
+    },
+    {
+      "id": "hatchet",
+      "name": "간이 도끼",
+      "category": "weapons",
+      "hours": 3,
+      "ingredients": [
+        {
+          "id": "scrap_spear",
+          "amount": 1
+        },
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "cord",
+          "amount": 1
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "hatchet",
+      "requiresFacility": "workbench",
+      "description": "작업대 필요 · 힘 +8. 창을 재료로 만드는 상위 무기."
+    },
+    {
+      "id": "reinforced_blade",
+      "name": "보강 칼날",
+      "category": "weapons",
+      "hours": 4,
+      "ingredients": [
+        {
+          "id": "machete",
+          "amount": 1
+        },
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        }
+      ],
+      "amount": 1,
+      "result": "reinforced_blade",
+      "requiresFacility": "workbench",
+      "description": "작업대 필요 · 힘 +10. 칼날 계열 최종 조합."
+    },
+    {
+      "id": "workbench",
+      "name": "작업대",
+      "category": "living",
+      "hours": 3,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 4
+        },
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        }
+      ],
+      "amount": 1,
+      "facility": true,
+      "description": "집에 설치한다. 칼날·도끼 계열 상위 무기 제작을 해금한다."
+    },
+    {
+      "id": "water_filter",
+      "name": "간이 정수기",
+      "category": "living",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "scrap",
+          "amount": 1
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "facility": true,
+      "description": "혼탁한 물을 생수로 바꾸는 정수 작업을 해금한다."
+    },
+    {
+      "id": "water_collector",
+      "name": "집수통",
+      "category": "living",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 1
+        },
+        {
+          "id": "cord",
+          "amount": 2
+        }
+      ],
+      "amount": 1,
+      "facility": true,
+      "description": "시간을 들여 혼탁한 물을 모을 수 있다. 모은 물은 정수가 필요하다."
+    },
+    {
+      "id": "bedroll",
+      "name": "보강 침구",
+      "category": "living",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "cloth",
+          "amount": 4
+        },
+        {
+          "id": "cord",
+          "amount": 2
+        },
+        {
+          "id": "wood",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "facility": true,
+      "description": "수면 중 졸림 감소 12→16/시간. 6시간 초과 수면의 정신력 회복 2→3/시간."
+    },
+    {
+      "id": "collect_water",
+      "name": "집수통 물 회수",
+      "category": "living",
+      "hours": 3,
+      "ingredients": [],
+      "amount": 1,
+      "result": "raw_water",
+      "requiresFacility": "water_collector",
+      "description": "집수통에서 혼탁한 물 1병을 모은다. 마시기 전에 정수해야 한다."
+    },
+    {
+      "id": "purify_water",
+      "name": "생수 정수",
+      "category": "living",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "raw_water",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "water",
+      "requiresFacility": "water_filter",
+      "description": "혼탁한 물 1병을 생수 1병으로 정수한다. 완성한 물은 집에 보관된다."
+    },
+    {
+      "id": "make_bandage",
+      "name": "붕대 만들기",
+      "category": "living",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "tape",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "bandage",
+      "description": "치료에 사용할 붕대 1개를 만든다."
+    }
+  ]
+}

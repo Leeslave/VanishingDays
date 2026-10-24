@@ -76,7 +76,7 @@ namespace VanishingDays.Editor
             require(!s.Story.HasMetDongrim && !s.Story.HasHeardSPBroadcast,"Radio auto-triggered story.");
             s.Search(data,()=>1); require(s.Backpack.Count("radio")==1,"Radio awarded twice.");
             require(s.Story.CanReceiveSPBroadcast && !s.Story.CanTriggerDongrimFirstEncounter(false),"Radio story gates wrong.");
-            s.ListenRadio(data); require(!s.Story.HasHeardSPBroadcast,"Radio first broadcast played outside home.");
+            s.ListenRadio(data); require(s.Story.HasHeardSPBroadcast,"Carried radio could not receive outside home.");
             s.Travel("home",data,()=>1); s.ListenRadio(data); require(s.Story.HasHeardSPBroadcast && s.Story.SupplyRumorUnlocked,"Approved broadcast did not set clue flag.");
             require(s.Story.CompleteDongrimRescue(true) && !s.Story.CompleteDongrimRescue(true),"Rescue completion not guarded/idempotent.");
             s=fresh(); require(!s.Story.CanReceiveSPBroadcast && !s.Story.CompleteDongrimRescue(true) && !s.Story.HasMetDongrim,"Radio prerequisite bypassed.");

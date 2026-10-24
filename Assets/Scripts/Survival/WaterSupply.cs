@@ -17,7 +17,7 @@ namespace VanishingDays
             HydrationHours=0;
             var source=CurrentLocation=="home" && HomeStorage.Count("water")>0?HomeStorage:Backpack;
             if(source.Remove("water",1)) { Thirst=0; Note("[식수] 생수 1병(500ml)을 마셨다. 목마름 0 / 100."); }
-            else { Vitals.Damage(data.TEMP_BALANCE.dehydrationDamage); Note("[식수 부족] 목마름 "+Thirst+" / 100. 마실 물이 없어 체력 -"+data.TEMP_BALANCE.dehydrationDamage+". 외출할 때는 물을 챙겨야 한다."); }
+            else { Vitals.Damage(data.TEMP_BALANCE.dehydrationDamage); RecordFact("shortage","마실 물이 부족해 체력을 잃었다."); Note("[식수 부족] 목마름 "+Thirst+" / 100. 마실 물이 없어 체력 -"+data.TEMP_BALANCE.dehydrationDamage+". 외출할 때는 물을 챙겨야 한다."); }
         }
         public string WaterStatus(SurvivalDefinitions data)
         {

@@ -26,12 +26,16 @@ namespace VanishingDays
         string page="home", message="", selectedLocation="home";
         bool confirmRestart;
         int selectedErasureDay;
+        int selectedDiaryDay,selectedMorningDay;
         readonly Dictionary<string,int> transferQuantities=new Dictionary<string,int>();
         ScrollRect inventoryScroll;
         float inventoryScrollOffset;
         ScrollRect neighborhoodScroll;
         Vector2 neighborhoodOffset;
         bool neighborhoodPositioned;
+        int craftTab,craftRenderedTab;
+        ScrollRect craftScroll;
+        readonly float[] craftOffsets=new float[3];
         Action[] shortcuts=new Action[3];
         string SavePath => store.Path;
 
@@ -55,6 +59,8 @@ namespace VanishingDays
             if(module!=null && module.inputOverride==null) module.inputOverride=EventSystem.current.gameObject.AddComponent<OpeningInputBridge>();
             state=SurvivalState.NewGame(GameDifficulty.NORMAL,definitions);
 #if UNITY_EDITOR || VD_UI_VERIFICATION
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdCraft")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/CraftingVerification/session.json"),definitions); StartCoroutine(SmokeCrafting()); return; }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdLife")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DailyLifeVerification/session.json"),definitions); StartCoroutine(SmokeDailyLife()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdThirst")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/ThirstVerification/session.json"),definitions); StartCoroutine(SmokeThirst()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdWater")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/WaterVerification/session.json"),definitions); StartCoroutine(SmokeWater()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSleepTrade")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/SleepTradeVerification/session.json"),definitions); StartCoroutine(SmokeSleepTrade()); return; }
@@ -120,6 +126,8 @@ namespace VanishingDays
         }
         void Render()
         {
+            if(craftScroll!=null && craftScroll.gameObject.activeInHierarchy) craftOffsets[craftRenderedTab]=craftScroll.content.anchoredPosition.y;
+            craftScroll=null;
             if(neighborhoodScroll!=null && neighborhoodScroll.gameObject.activeInHierarchy) neighborhoodOffset=neighborhoodScroll.content.anchoredPosition;
             neighborhoodScroll=null;
             if(inventoryScroll!=null && inventoryScroll.gameObject.activeInHierarchy) inventoryScrollOffset=inventoryScroll.content.anchoredPosition.y;
@@ -132,7 +140,12 @@ namespace VanishingDays
             if(state.PendingEncounter!=null) { EncounterPage(); return; }
             if(state.HasActiveCrowdIncident) { CrowdIncidentPage(); return; }
             if(state.PendingDongrimMeeting) { DongrimMeetingPage(); return; }
-            if(state.HasUnreadErasureNews) { ErasureBulletinPage(); return; }
+            if(state.HasActiveCompanion) { CompanionPage(); return; }
+            if(page!="diaries" && page!="morning")
+            {
+                if(state.NextDiary!=null) { DiaryPage(true); return; }
+                if(state.HasPendingMorning) { selectedMorningDay=0; MorningPage(); return; }
+            }
             switch(page)
             {
                 case "map": Map(); break;
@@ -141,7 +154,12 @@ namespace VanishingDays
                 case "erasure": ErasureMapPage(); break;
                 case "inventory": InventoryPage(); break;
                 case "kitchen": Kitchen(); break;
+                case "craft": CraftingPage(); break;
                 case "sleep": SleepPage(); break;
+                case "diaries": DiaryPage(false); break;
+                case "morning": MorningPage(); break;
+                case "neighbor": NeighborPage(); break;
+                case "companion": CompanionPage(); break;
                 case "security": Security(); break;
                 case "journal": Journal(); break;
                 case "menu": Menu(); break;
@@ -167,16 +185,16 @@ namespace VanishingDays
             Box("Mental capacity",48,343,804*(state.Vitals.MentalCap/(float)state.Vitals.BaseMaxMental),12,new Color32(55,68,62,255));
             Box("Mental current",48,343,804*(state.Vitals.CurrentMental/(float)state.Vitals.BaseMaxMental),12,new Color32(129,161,177,255));
             string[] names={"생활","외출","물품","기록"}, ids={"home","map","inventory","journal"};
-            for(int i=0;i<4;i++) { string id=ids[i]; Button(names[i],48+i*206,362,186,62,()=>{page=id; message=""; Render();},state.CanAct && !state.HasUnreadErasureNews,page==id); }
+            for(int i=0;i<4;i++) { string id=ids[i]; Button(names[i],48+i*206,362,186,62,()=>{page=id; message=""; Render();},state.CanAct && !state.HasLifeNotice,page==id); }
         }
         void Dock()
         {
             Box("Dock",48,1412,804,138,Panel);
             Label(state.WaterStatus(definitions),66,1422,768,38,21,Muted);
             bool home=state.CurrentLocation=="home";
-            Button(home?(state.IsNight(definitions.TEMP_BALANCE)?"아침까지 머무른다":"밤까지 머무른다"):"집으로 돌아간다",66,1477,420,58,()=>{if(home) Apply(state.Rest(definitions,true)); else SelectLocation("home");},state.CanAct && !state.HasUnreadErasureNews,true);
-            Button("문·정비",502,1477,190,58,()=>{page="security";message="";Render();},home && state.CanAct && !state.HasUnreadErasureNews);
-            Button("메뉴",708,1477,126,58,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver) && !state.HasUnreadErasureNews);
+            Button(home?(state.IsNight(definitions.TEMP_BALANCE)?"아침까지 머무른다":"밤까지 머무른다"):"집으로 돌아간다",66,1477,420,58,()=>{if(home) Apply(state.Rest(definitions,true)); else SelectLocation("home");},state.CanAct && !state.HasLifeNotice,true);
+            Button("제작",502,1477,190,58,()=>{page="craft";message="";Render();},home && state.CanAct && !state.HasLifeNotice);
+            Button("메뉴",708,1477,126,58,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver) && !state.HasLifeNotice);
         }
         void Hero(string title)
         {
@@ -194,7 +212,9 @@ namespace VanishingDays
             Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,820,150);
             Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
             Choice(1,"잠을 잔다","하루 6시간 필요 · 수면 시간을 선택한다",1122,()=>{page="sleep";message="";Render();});
-            Choice(2,state.Story.HasRadio?"라디오를 켠다":"정비와 보안",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"집의 침입 저항과 외부 주목도를 확인한다",1234,()=>{if(state.Story.HasRadio) OpenRadio(); else {page="security"; message=""; Render();}});
+            Choice(2,state.Story.HasRadio?"라디오를 켠다":"제작대를 확인한다",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"음식 · 무기 · 생활용품을 만든다",1234,()=>{if(state.Story.HasRadio) OpenRadio(); else {page="craft"; message=""; Render();}});
+            Button("옆집 안부",48,1342,390,48,()=>{page="neighbor";message="";Render();});
+            Button("동행 약속",462,1342,390,48,()=>{page="companion";message="";Render();},state.CompanionAvailable);
         }
         void Explore()
         {
@@ -205,6 +225,7 @@ namespace VanishingDays
             Choice(0,"주변을 수색한다",state.HasSearchWork(location.id,definitions)?location.searchHours+"시간 · 남은 물자를 확인한다":"물자 소진 · 지도에서 다음 목적지를 확인",1010,()=>Apply(state.Search(definitions)),state.HasSearchWork(location.id,definitions));
             Choice(1,"소지 물품을 확인한다","식량과 도구를 정리한다",1122,()=>{page="inventory"; Render();});
             Choice(2,"집으로 돌아간다",location.travelHours+"시간 · 귀갓길에도 조우할 수 있다",1234,()=>SelectLocation("home"));
+            if(state.CompanionAvailable) Button("동행 약속 확인",48,1342,804,48,()=>{page="companion";message="";Render();});
         }
         void Map()
         {
@@ -281,12 +302,13 @@ namespace VanishingDays
         }
         void OpenRadio()
         {
-            bool available=state.CanAct && state.CurrentLocation=="home" && state.CanUseRadio;
+            if(state.Story.HasHeardSPBroadcast && state.CanUseRadio && state.MorningIssues.Count>0) { page="morning";selectedMorningDay=0;Render(); return; }
+            bool available=state.CanAct && state.CanUseRadio;
             Apply(state.ListenRadio(definitions),available?"radio":"home");
         }
         void RadioPage()
         {
-            if(!state.Story.SupplyRumorUnlocked || !state.CanUseRadio || state.CurrentLocation!="home") { Home(); return; }
+            if(!state.Story.SupplyRumorUnlocked || !state.CanUseRadio) { if(state.CurrentLocation=="home") Home(); else Explore(); return; }
             var script=definitions.radioStory;
             var broadcast=state.LastRadioBroadcastId==script.firstBroadcast.id?script.firstBroadcast:script.generalBroadcast;
             Label("라디오 수신 기록",48,462,804,56,36,Paper);
@@ -294,7 +316,7 @@ namespace VanishingDays
             Label("방송 본문 · 위아래로 스크롤",48,584,804,24,18,Muted);
             Paragraph(broadcast.body,610,460,27);
             Paragraph("[정보 카드]\n"+script.clueCard,1090,128,23);
-            Button(state.ErasureNewsEnabled?"전국 소멸 지도·수신 기록":"전국 속보 · 가락시장 사건 이후 수신",48,1236,804,52,()=>{page="erasure";selectedErasureDay=0;Render();},state.ErasureNewsEnabled);
+            Button("전국 소멸 지도·수신 기록",48,1236,804,52,()=>{page="erasure";selectedErasureDay=0;Render();},state.ErasureNewsEnabled);
             Button("방송 기록 닫기",48,1310,390,70,()=>{page="home";message="";Render();},true,true);
             Button("제보 장소 지도 보기",462,1310,390,70,()=>{page="map";message="";Render();});
         }
@@ -334,18 +356,55 @@ namespace VanishingDays
                 Button(state.Crowd.Step==CrowdStoryStep.Introduction?"기록하고 계속한다":"다음",48,1310,804,70,()=>Apply(state.ContinueCrowdStory(definitions)),true,true);
             }
         }
-        void Kitchen()
+        void Kitchen() { craftTab=0; CraftingPage(); }
+        void CraftingPage()
         {
-            Label("부르스타 앞에서",48,462,804,60,36,Paper);
-            Paragraph(string.IsNullOrEmpty(message)?(state.UnlimitedWater?"쉬움은 식수·조리용 물이 무제한이다.":"식수는 6시간마다 1병, 요리는 집의 물 1병을 쓴다. 물이 없으면 조리 불가, 식수 부족 시 체력 -10."):message,542,110,25);
-            for(int i=0;i<definitions.recipes.Length;i++)
+            Label("제작",48,462,804,60,36,Paper);
+            string[] tabs={"음식","무기","생활용품"};
+            for(int i=0;i<tabs.Length;i++) { int tab=i; Button(tabs[i],48+i*276,536,252,62,()=>{craftTab=tab;page="craft";message="";Render();},true,craftTab==i); }
+            string[] notes={state.UnlimitedWater?"집의 식재료로 요리한다. 쉬움은 식수·조리용 물이 무제한이다.":"집의 식재료와 물로 요리한다. 요리 1회에 물 1병이 필요하다.","하위 무기를 재료로 상위 무기를 만든다. 집 창고의 재료를 사용하며, 장착한 재료 무기는 먼저 벗어야 한다. 무기는 1개만 장착한다.","문 강화·정수·작업대·침구를 만든다. 설치한 설비는 집에 남고 해당 작업이나 생존 효과를 제공한다."};
+            Paragraph(string.IsNullOrEmpty(message)?notes[craftTab]:message,614,114,24);
+            var area=ScrollArea("Craft recipes",748,624,out var content); craftScroll=area.GetComponent<ScrollRect>(); craftRenderedTab=craftTab; float y=12;
+            if(craftTab==0)
             {
-                var recipe=definitions.recipes[i]; float y=680+i*172; Box(recipe.name,48,y,804,154,Panel);
-                Label(recipe.name,68,y+10,760,36,28,Paper); Label(Cost(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간",68,y+52,760,32,21,Muted);
-                bool home=state.CurrentLocation=="home";
-                Button("조리한다",68,y+96,360,48,()=>Apply(state.Cook(recipe.id,definitions),"kitchen"),state.CanCook(recipe,definitions),true);
-                Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),452,y+96,380,48,()=>Apply(state.Eat(recipe.result,definitions),"kitchen"),state.Backpack.Count(recipe.result)>0 || (home && state.HomeStorage.Count(recipe.result)>0));
+                foreach(var recipe in definitions.recipes)
+                {
+                    Label(recipe.name,18,y,768,40,28,Paper,content);
+                    Label(Materials(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간",18,y+46,768,58,22,Muted,content);
+                    Button("조리한다",18,y+106,366,54,()=>Apply(state.Cook(recipe.id,definitions),"craft"),state.CanCook(recipe,definitions),true,content);
+                    Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),402,y+106,384,54,()=>Apply(state.Eat(recipe.result,definitions),"craft"),state.Backpack.Count(recipe.result)>0 || state.CurrentLocation=="home" && state.HomeStorage.Count(recipe.result)>0,false,content);
+                    y+=184;
+                }
             }
+            else
+            {
+                if(craftTab==2) foreach(var device in definitions.security.Where(x=>x.id.StartsWith("door"))) { SecurityCraftRow(device,content,y); y+=234; }
+                foreach(var recipe in definitions.crafting.recipes.Where(x=>x.category==(craftTab==1?"weapons":"living")))
+                {
+                    bool installed=recipe.facility && state.HasFacility(recipe.id);
+                    bool facilityReady=string.IsNullOrEmpty(recipe.requiresFacility) || state.HasFacility(recipe.requiresFacility);
+                    Label(recipe.name,18,y,768,40,28,Paper,content);
+                    Label(recipe.description,18,y+46,768,60,22,Muted,content);
+                    Label((recipe.ingredients.Length==0?"재료 소모 없음 · 집수 작업":Materials(recipe.ingredients))+" · "+recipe.hours+"시간",18,y+108,768,60,22,Muted,content);
+                    string status=installed?"설치 완료":!facilityReady?"필요 설비: "+definitions.crafting.Find(recipe.requiresFacility).name:state.CanCraft(recipe.id,definitions)?"제작 가능":"집의 재료 부족";
+                    Label(status,18,y+180,500,36,21,installed?Muted:Amber,content);
+                    Button(installed?"설치됨":recipe.facility?"설치한다":"제작한다",540,y+174,246,58,()=>Apply(state.Craft(recipe.id,definitions),"craft"),state.CanCraft(recipe.id,definitions),true,content);
+                    y+=254;
+                }
+                if(craftTab==2) foreach(var device in definitions.security.Where(x=>!x.id.StartsWith("door"))) { SecurityCraftRow(device,content,y); y+=234; }
+            }
+            content.sizeDelta=new Vector2(804,Mathf.Max(624,y));
+            content.anchoredPosition=new Vector2(0,Mathf.Clamp(craftOffsets[craftTab],0,content.sizeDelta.y-624));
+        }
+        string Materials(ItemStack[] costs) => string.Join(" · ",costs.Select(x=>definitions.Item(x.id).name+" "+definitions.Quantity(x.id,state.HomeStorage.Count(x.id))+" / "+definitions.Quantity(x.id,x.amount)));
+        void SecurityCraftRow(SecurityDefinition device,Transform content,float y)
+        {
+            bool installed=state.InstalledSecurity.Contains(device.id), prerequisite=string.IsNullOrEmpty(device.requiresSecurity) || state.InstalledSecurity.Contains(device.requiresSecurity);
+            Label(device.name,18,y,768,40,28,Paper,content);
+            Label("침입 저항 +"+device.protection+" · 외부 주목 +"+device.attention+" · "+device.hours+"시간",18,y+46,768,32,22,Muted,content);
+            Label(Materials(device.ingredients),18,y+86,768,60,22,Muted,content);
+            Label(installed?"보강 완료":!prerequisite?"선행: "+definitions.Security(device.requiresSecurity).name:state.CanInstallSecurity(device.id,definitions)?"보강 가능":"집의 재료 부족",18,y+168,500,36,21,Amber,content);
+            Button(installed?"설치됨":"보강한다",540,y+158,246,58,()=>Apply(state.InstallSecurity(device.id,definitions),"craft"),state.CanInstallSecurity(device.id,definitions),true,content);
         }
         string Cost(ItemStack[] ingredients) { var costs=new string[ingredients.Length]; for(int i=0;i<costs.Length;i++) costs[i]=definitions.Item(ingredients[i].id).name+" "+definitions.Quantity(ingredients[i].id,ingredients[i].amount); return string.Join(" · ",costs); }
         void InventoryPage()
@@ -393,22 +452,7 @@ namespace VanishingDays
         {
             transferQuantities[id]=Mathf.Clamp(TransferQuantity(id)+change,1,Math.Max(1,maximum)); Render();
         }
-        void Security()
-        {
-            Label("문 업그레이드와 정비",48,462,804,60,36,Paper);
-            Paragraph("문 "+state.DoorLevel+" / 3단계 · 침입 저항 "+state.Protection(definitions)+" · 외부 주목 "+state.Attention(definitions)+"\n귀가 시 침입 위험 "+(state.HomeRaidRisk(definitions)*100).ToString("0.#")+"%\n"+(string.IsNullOrEmpty(message)?"집에 보관한 재료로 순서대로 문을 보강한다.":message),542,176,24);
-            Label("업그레이드 목록 · 위아래로 스크롤",48,716,804,28,18,Muted);
-            ScrollArea("Security upgrades",744,628,out var content);
-            for(int i=0;i<definitions.security.Length;i++)
-            {
-                var device=definitions.security[i]; float y=12+i*252; bool installed=state.InstalledSecurity.Contains(device.id);
-                bool prerequisite=string.IsNullOrEmpty(device.requiresSecurity) || state.InstalledSecurity.Contains(device.requiresSecurity);
-                Label(device.name,20,y,764,42,29,Paper,content);
-                Label("침입 저항 +"+device.protection+" / 외부 주목 +"+device.attention+"\n"+Cost(device.ingredients)+" · "+device.hours+"시간\n"+(!prerequisite?"선행 필요: "+definitions.Security(device.requiresSecurity).name:installed?"보강 완료":"집 재료: "+string.Join(" · ",device.ingredients.Select(x=>definitions.Item(x.id).name+" "+state.HomeStorage.Count(x.id)))),20,y+52,764,108,22,Muted,content);
-                Button(installed?"설치됨":!prerequisite?"이전 단계 필요":"보강한다",20,y+172,764,54,()=>Apply(state.InstallSecurity(device.id,definitions),"security"),state.CanInstallSecurity(device.id,definitions),true,content);
-            }
-            content.sizeDelta=new Vector2(804,Mathf.Max(628,definitions.security.Length*252+12));
-        }
+        void Security() { craftTab=2; CraftingPage(); }
         void DongrimMeetingPage()
         {
             Label("최동림 · "+(state.TotalDongrimMeetings+1)+"번째 만남",48,462,804,60,36,Paper);
@@ -421,9 +465,79 @@ namespace VanishingDays
         {
             Label("생존 기록",48,462,804,60,36,Paper); Label("작성자 : "+state.PlayerNickname,48,540,420,48,26,Muted);
             if(state.ErasureNewsEnabled) Button("전국 소멸 지도",490,530,362,58,()=>{page="erasure";selectedErasureDay=0;Render();});
-            ScrollArea("Journal",620,752,out var content); float y=18;
+            Button("날짜별 일기",48,606,252,52,()=>{page="diaries";selectedDiaryDay=0;Render();});
+            Button("아침 수신함",324,606,252,52,()=>{page="morning";selectedMorningDay=0;Render();},state.CanUseRadio && state.MorningIssues.Count>0);
+            Button("동행 약속",600,606,252,52,()=>{page="companion";message="";Render();},state.CompanionAvailable);
+            ScrollArea("Journal",684,688,out var content); float y=18;
             foreach(var entry in state.journal) { var text=Label(entry,18,y,768,200,25,Paper,content); float h=Mathf.Max(88,text.preferredHeight+20); text.rectTransform.sizeDelta=new Vector2(768,h); y+=h+28; Box("Entry rule",18,y,768,1,new Color32(61,73,67,255),content); y+=28; }
-            content.sizeDelta=new Vector2(804,Mathf.Max(752,y));
+            content.sizeDelta=new Vector2(804,Mathf.Max(688,y));
+        }
+        void DiaryPage(bool pending)
+        {
+            var entry=pending?state.NextDiary:state.Diaries.Find(x=>x.day==selectedDiaryDay)??state.Diaries.LastOrDefault();
+            Label(pending?"하루의 기록":"날짜별 기록지",48,462,804,60,36,Paper);
+            Paragraph(entry?.body??"아직 완성된 하루 기록이 없다. 날짜가 바뀌면 오늘 실제로 겪은 일을 정리한다.",542,548,27);
+            Label("본문은 위아래로 스크롤해서 읽을 수 있다",48,1090,804,20,16,Muted);
+            ScrollArea("Diary dates",1110,148,out var content); float y=10;
+            foreach(var date in state.Diaries)
+            {
+                int id=date.day;
+                Button("기록지 #"+id.ToString("000")+(date.read?" · 확인":" · 새 기록"),12,y,780,48,()=>{selectedDiaryDay=id;page="diaries";Render();},true,date==entry,content); y+=58;
+            }
+            content.sizeDelta=new Vector2(804,Mathf.Max(148,y));
+            Button(pending?"읽고 계속한다":"확인하고 닫는다",48,1298,390,76,()=>{if(pending && entry!=null) state.ReadDiary(entry.day); else {foreach(var date in state.Diaries)date.read=true;page="journal";} Save();Render();},true,true);
+            Button("기록 모아 보기",462,1298,390,76,()=>{page="diaries";selectedDiaryDay=entry?.day??0;Render();});
+        }
+        void MorningPage()
+        {
+            if(!state.CanUseRadio)
+            {
+                Label("아침 수신함",48,462,804,60,36,Paper); Paragraph("집에 둔 라디오는 외부에서 들을 수 없다. 라디오를 챙기거나 집에 돌아와 수신 기록을 확인하자.",550,450);
+                Button("돌아가기",48,1298,804,76,()=>{page="journal";Render();}); return;
+            }
+            var issue=state.MorningIssues.Find(x=>x.day==selectedMorningDay)??state.MorningIssues.Find(x=>!x.read)??state.MorningIssues.LastOrDefault();
+            Label("아침 수신함",48,462,804,60,36,Paper);
+            Label(issue==null?"아침 8시에 다음 소식이 준비된다.":"DAY "+issue.day.ToString("00")+" · "+(issue.kind=="first"?"첫 물자 제보":"SP 소식")+" · "+(issue.read?"확인한 방송":"미청취"),48,536,804,44,24,Amber);
+            Label("방송 본문 · 위아래로 스크롤",48,580,804,18,15,Muted);
+            Paragraph(issue?.body??"아직 준비된 아침 소식이 없다.",598,492,26);
+            ScrollArea("Morning dates",1110,148,out var content); float y=10;
+            foreach(var date in state.MorningIssues)
+            {
+                int id=date.day;
+                Button("DAY "+id.ToString("00")+" · "+(date.kind=="first"?"첫 방송":date.kind=="legacy"?"이전 수신":"아침 소식")+(date.read?" · 확인":" · 미청취"),12,y,780,48,()=>{selectedMorningDay=id;page="morning";Render();},true,date==issue,content); y+=58;
+            }
+            content.sizeDelta=new Vector2(804,Mathf.Max(148,y));
+            Button("이날 방송 확인",48,1298,390,76,()=>{if(issue!=null)state.ReadMorning(issue.day,definitions);state.DismissMorning();if(page=="morning")page="home";Save();Render();},issue!=null,true);
+            Button("나머지는 보관·닫기",462,1298,390,76,()=>{state.DismissMorning();if(page=="morning")page="home";Save();Render();});
+        }
+        void NeighborPage()
+        {
+            Label("옆집의 안부",48,462,804,60,36,Paper);
+            string text=state.NeighborStage==0?"찬장에 빌려 쓰던 반찬 그릇이 남아 있다. 옆집 노인에게 돌려드리며 안부를 물을 수 있다.":state.NeighborStage==2?definitions.lifeStory.neighborQuiet:"벽을 두 번 두드리고 두 번 답하는 작은 인사. 오늘의 안부를 물을 수 있다.";
+            Paragraph(string.IsNullOrEmpty(message)?text:message,550,540,27);
+            Label("대화 본문 · 위아래로 스크롤",48,1092,804,22,17,Muted);
+            Button(state.NeighborStage==0?"그릇을 돌려드린다":"벽을 두 번 두드린다",48,1120,804,70,()=>Apply(state.GreetNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborLastDay<state.day && state.NeighborStage!=2,true);
+            Button("문 앞에서 직접 확인한다 · 1시간",48,1212,804,70,()=>Apply(state.CheckNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborStage==2);
+            Button("생활로 돌아가기",48,1310,804,70,()=>{page="home";message="";Render();});
+        }
+        void CompanionPage()
+        {
+            bool active=state.HasActiveCompanion;
+            Label(state.Companion==CompanionStep.Jiwoo?"처음 만난 한지우":active?"함께 돌아오는 사람":"동행 약속",48,462,804,60,36,Paper);
+            Paragraph(active?state.CompanionText(definitions):string.IsNullOrEmpty(message)?state.CompanionHint:message,550,570,27);
+            Label("대화 본문 · 위아래로 스크롤",48,1128,804,26,18,Muted);
+            if(state.Companion==CompanionStep.Decision)
+            {
+                Choice(0,"오늘은 먼저 돌아간다","동림의 상태를 살피고 함께 철수 · 1시간",1160,()=>Apply(state.ContinueCompanion(definitions,true),"companion"));
+                Choice(1,"입구의 표식만 더 확인한다","안쪽 진입 없이 기록하고 귀환 · 2시간",1272,()=>Apply(state.ContinueCompanion(definitions,false),"companion"));
+            }
+            else if(active) Button(state.Companion==CompanionStep.Jiwoo?"각자 집에서 준비한다":state.Companion==CompanionStep.Briefing?"동림과 탐사를 시작한다 · 2시간":"귀환을 알리고 해산한다",48,1298,804,76,()=>Apply(state.ContinueCompanion(definitions),"companion"),true,true);
+            else
+            {
+                Button("약속 장소에서 만난다",48,1212,804,76,()=>Apply(state.MeetCompanion(definitions),"companion"),state.CanMeetCompanion(definitions),true);
+                Button("고등학교 지도",48,1310,390,70,()=>SelectLocation("school"),state.IsLocationUnlocked("school",definitions));
+                Button("생활로 돌아가기",462,1310,390,70,()=>{page="home";message="";Render();});
+            }
         }
         void ErasureBulletinPage()
         {
@@ -444,7 +558,7 @@ namespace VanishingDays
             if(!state.ErasureNewsEnabled) { Journal(); return; }
             Label("전국 소멸 수신 기록",48,462,550,60,34,Paper);
             Button("기록으로",620,462,232,54,()=>{page="journal";Render();});
-            var reports=state.ErasureHistory;
+            var reports=state.ErasureHistory.Where(state.CanViewErasureReport).ToList();
             var selected=reports.Find(x=>x.day==selectedErasureDay)??reports.LastOrDefault();
             var places=reports.Where(x=>!string.IsNullOrEmpty(x.locationId)).Select(x=>definitions.erasureNews.Find(x.locationId)).ToArray();
             var map=Rect("Korea erasure map",root,48,540,804,270).gameObject.AddComponent<KoreaErasureMapGraphic>();
@@ -469,13 +583,13 @@ namespace VanishingDays
             // lastReport holds the search/arrival result that triggered this encounter.
             Hero("누군가 물품을 요구한다"); Paragraph(state.lastReport+"\n\n"+state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?",790,188);
             Choice(0,"순순히 내어준다","물품을 내어주고 부상을 피한다",1000,()=>Apply(state.ResolveEncounter(false,definitions)));
-            Choice(1,"저항한다",state.Equipment.Contains("weapon")?"무기 저항 · 사망 시 정신력 상한 -25":"빠져나갈 수도 있지만 부상을 입을 수 있다",1112,()=>Apply(state.ResolveEncounter(true,definitions)));
+            Choice(1,"저항한다",state.HasWeapon(definitions)?"무기 저항 · 사망 시 정신력 상한 -25":"빠져나갈 수도 있지만 부상을 입을 수 있다",1112,()=>Apply(state.ResolveEncounter(true,definitions)));
             Choice(2,"상대의 식량을 강탈한다","참치 1개 획득 · 정신력 상한 -10 (회복 불가)",1224,()=>Apply(state.RobHungrySurvivor()));
         }
         void SleepPage()
         {
             Label("잠들기 전",48,462,804,60,36,Paper);
-            Paragraph("졸림 "+state.Sleepiness+" / 100\n오늘 수면 "+state.SleepHours+" / 6시간\n\n매일 오전 8시에 지난 하루를 평가한다. 부족한 수면 1시간당 정신력 -3. 6시간 초과 수면은 시간당 정신력 +2.\n\n살해·강탈로 줄어든 정신력 상한은 수면으로 회복되지 않는다. 연속 6시간 수면은 부상 1곳도 회복한다.",542,428,26);
+            Paragraph("졸림 "+state.Sleepiness+" / 100\n오늘 수면 "+state.SleepHours+" / 6시간\n\n매일 오전 8시에 지난 하루를 평가한다. 부족한 수면 1시간당 정신력 -3. 6시간 초과 수면은 시간당 정신력 +"+state.SleepMentalRecovery+".\n"+(state.HasFacility("bedroll")?"보강 침구 사용 · 졸림 시간당 -16\n":"")+"\n살해·강탈로 줄어든 정신력 상한은 수면으로 회복되지 않는다. 연속 6시간 수면은 부상 1곳도 회복한다.",542,428,26);
             Choice(0,"2시간 잔다","짧게 눈을 붙인다",1000,()=>Apply(state.Rest(definitions,false,2)));
             Choice(1,"6시간 잔다","하루에 필요한 수면을 채운다",1112,()=>Apply(state.Rest(definitions,false,6)));
             Choice(2,"8시간 잔다","충분히 자고 정신력을 일부 회복한다",1224,()=>Apply(state.Rest(definitions,false,8)));
@@ -501,12 +615,12 @@ namespace VanishingDays
         void Menu()
         {
             Label("기록을 정리한다",48,470,804,60,36,Paper); Paragraph(ReportText,560,170);
-            Button("집의 보안과 정비",48,780,804,84,()=>{page="security";message="";Render();},state.CurrentLocation=="home");
+            Button("제작 · 음식 / 무기 / 생활용품",48,780,804,84,()=>{page="craft";message="";Render();},state.CurrentLocation=="home");
             Button("기록 저장",48,890,390,84,()=>{Save();message="현재 기록을 저장했다.";Render();},true,true);
             Button("저장 기록 불러오기",462,890,390,84,Load,store.Exists);
             Button("기록 이어가기",48,1010,804,84,()=>{page="home";Render();});
             Button("새 기록 시작",48,1130,804,84,()=>{confirmRestart=true;Render();});
-            if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,OpenRadio,state.CanUseRadio && state.CurrentLocation=="home");
+            if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,OpenRadio,state.CanUseRadio);
         }
         void RestartPage()
         {
@@ -545,6 +659,92 @@ namespace VanishingDays
             else { Debug.LogWarning("Load failed: "+error); page="continue"; message="남겨 둔 기록을 읽을 수 없다. 기존 파일은 보관돼 있다."; Render(); }
         }
 #if UNITY_EDITOR || VD_UI_VERIFICATION
+        IEnumerator SmokeCrafting()
+        {
+            string dir=Path.GetFullPath("Builds/CraftingVerification"); Directory.CreateDirectory(dir);
+            state.Story.OpeningCompleted=true;state.PlayerNickname="제작 검증";
+            foreach(string id in new[]{"wood","tools","scrap","cloth","cord","tape","water"})state.HomeStorage.Add(id,40);
+            state.HomeStorage.Add("raw_water",2); Render();yield return null;ClickGameButton("제작");
+            if(!root.GetComponentsInChildren<Button>().Any(x=>x.name=="음식") || !root.GetComponentsInChildren<Button>().Any(x=>x.name=="무기") || !root.GetComponentsInChildren<Button>().Any(x=>x.name=="생활용품"))throw new InvalidOperationException("Craft tabs missing.");
+            ClickGameButton("조리한다");if(state.HomeStorage.Count("rice_meal")!=1)throw new InvalidOperationException("Food tab cooking failed.");
+            yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"FOOD.png"));
+            Action<string,bool> make=(id,security)=>
+            {
+                string title=security?definitions.Security(id).name:definitions.crafting.Find(id).name;
+                var label=craftScroll.content.GetComponentsInChildren<Text>().First(x=>x.text==title);
+                float top=-label.rectTransform.anchoredPosition.y;
+                craftScroll.content.anchoredPosition=new Vector2(0,Mathf.Clamp(top-20,0,craftScroll.content.sizeDelta.y-624));
+                float offset=security?158:174;
+                var button=craftScroll.content.GetComponentsInChildren<Button>().First(x=>Mathf.Abs(x.GetComponent<RectTransform>().anchoredPosition.y-(label.rectTransform.anchoredPosition.y-offset))<1);
+                if(!button.interactable)throw new InvalidOperationException("Craft UI unexpectedly locked: "+id);button.onClick.Invoke();
+            };
+            ClickGameButton("무기");make("club",false);make("wrapped_club",false);make("nail_bat",false);
+            if(state.HomeStorage.Count("club")!=0 || state.HomeStorage.Count("wrapped_club")!=0 || state.HomeStorage.Count("nail_bat")!=1)throw new InvalidOperationException("Weapon upgrade chain failed.");
+            yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"WEAPONS.png"));
+            ClickGameButton("물품");ClickGameButton("착용");if(state.Strength(definitions)!=6)throw new InvalidOperationException("Crafted weapon equip failed.");
+            ClickGameButton("제작");ClickGameButton("생활용품");make("workbench",false);make("water_filter",false);make("water_collector",false);make("collect_water",false);
+            int water=state.HomeStorage.Count("water");make("purify_water",false);
+            if(state.NextDiary!=null)ClickGameButton("읽고 계속");
+            if(state.HomeStorage.Count("raw_water")!=2 || state.HomeStorage.Count("water")!=water+1 || craftTab!=2)throw new InvalidOperationException("Water crafting or tab restoration after diary failed.");
+            yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"WATER-SURVIVAL.png"));
+            state.Vitals.Hunger=0;make("bedroll",false);make("door1",true);
+            if(!state.HasFacility("bedroll") || state.SleepMentalRecovery!=3 || state.DoorLevel!=1)throw new InvalidOperationException("Living utility effects/door upgrade failed.");
+            yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DOOR-UPGRADE.png"));
+            ClickGameButton("무기");make("machete",false);ClickGameButton("물품");ClickGameButton("착용");
+            if(state.Strength(definitions)!=7 || state.HomeStorage.Count("nail_bat")!=1 || state.Equipment.Count!=1)throw new InvalidOperationException("Weapon replacement stacked or lost old weapon.");
+            Save();if(!store.TryLoad(out var loaded,out _) || !loaded.HasFacility("water_filter") || loaded.DoorLevel!=1 || loaded.Strength(definitions)!=7)throw new InvalidOperationException("Crafting autosave failed.");
+            Debug.Log("VD_CRAFTING_UI_OK: three tabs, cooking, weapon upgrade chain/equip/replacement, workbench, collection/purification, bedroll, door upgrade, diary return and autosave.");
+            yield return null;Application.Quit();
+        }
+        IEnumerator SmokeDailyLife()
+        {
+            string dir=Path.GetFullPath("Builds/DailyLifeVerification"); Directory.CreateDirectory(dir);
+            state.Story.OpeningCompleted=true; state.PlayerNickname="하루 기록자"; Render(); yield return null;
+            ClickGameButton("옆집 안부"); ClickGameButton("그릇을 돌려"); yield return null;
+            if(state.NeighborStage!=1) throw new InvalidOperationException("Neighbor first meeting UI failed.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"NEIGHBOR.png"));
+            ClickGameButton("생활로 돌아"); state.Story.HasRadio=true; state.Backpack.Add("radio",1); state.hour=23;
+            Apply(state.Rest(definitions,false,9)); yield return null;
+            if(!root.GetComponentsInChildren<Text>().Any(x=>x.text=="하루의 기록") || state.MorningIssues.Count!=1) throw new InvalidOperationException("Sleep did not queue diary before morning.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DAILY-DIARY.png"));
+            ClickGameButton("읽고 계속"); yield return null;
+            if(!root.GetComponentsInChildren<Text>().Any(x=>x.text=="아침 수신함") || state.Story.SupplyRumorUnlocked) throw new InvalidOperationException("First morning order/first-radio gate failed.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"FIRST-MORNING.png"));
+            ClickGameButton("이날 방송 확인");
+            if(!state.Story.SupplyRumorUnlocked || state.Story.HasMetDongrim) throw new InvalidOperationException("Morning first broadcast skipped market story.");
+            state.day=3; state.hour=7; state.Vitals.Hunger=0; state.AdvanceTime(1,definitions); Render(); yield return null;
+            if(state.ErasureHistory.Count!=1 || state.Story.CrowdIncidentResolved) throw new InvalidOperationException("Morning news remained gated by Garak.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"REGULAR-MORNING.png"));
+            ClickGameButton("이날 방송 확인");
+            state.Travel("supply_site",definitions,()=>1); state.ApproachCrowd(definitions); state.ChooseCrowdResponse(true,definitions);
+            state.ContinueCrowdStory(definitions); state.ContinueCrowdStory(definitions); state.ContinueCrowdStory(definitions);
+            state.UnlockedLocations.AddRange(new[]{"empty_house","school"}); state.Travel("home",definitions,()=>1);
+            state.day=4; state.hour=8; state.Vitals.Hunger=0; Apply(state.Travel("empty_house",definitions,()=>1)); ClickGameButton("확인한 길과 소식");
+            state.Travel("home",definitions,()=>1); state.day=5; state.hour=8; state.Vitals.Hunger=0;
+            Apply(state.Travel("school",definitions,()=>1)); ClickGameButton("확인한 길과 소식");
+            state.day=6; state.hour=8; page="companion"; message=""; Render(); ClickGameButton("약속 장소에서 만난다"); yield return null;
+            if(!state.Story.HasMetJiwoo || state.Companion!=CompanionStep.Jiwoo) throw new InvalidOperationException("Jiwoo UI did not start.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"JIWOO.png"));
+            Save(); if(!store.TryLoad(out var reloaded,out _) || reloaded.Companion!=CompanionStep.Jiwoo) throw new InvalidOperationException("Jiwoo active dialogue save failed.");
+            state=reloaded; Render(); ClickGameButton("각자 집에서 준비");
+            state.Travel("home",definitions,()=>1); state.Cook("rice",definitions); state.Transfer("rice_meal",true,1,definitions);
+            state.day=state.CompanionReadyDay; state.hour=8; state.Vitals.Hunger=0; state.Travel("school",definitions,()=>1);
+            page="companion"; message=""; Render(); ClickGameButton("약속 장소에서 만난다"); ClickGameButton("동림과 탐사를 시작"); yield return null;
+            if(state.Companion!=CompanionStep.Decision || state.CompanionTrust!=1) throw new InvalidOperationException("Prepared companion expedition UI failed.");
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"EXPEDITION-CHOICE.png"));
+            Save(); if(!store.TryLoad(out reloaded,out _) || reloaded.Companion!=CompanionStep.Decision) throw new InvalidOperationException("Expedition choice save failed.");
+            state=reloaded; Render(); ClickGameButton("오늘은 먼저 돌아"); yield return null;
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"RETURN-TOGETHER.png"));
+            ClickGameButton("귀환을 알리고 해산");
+            if(state.Companion!=CompanionStep.Completed || state.Story.JoinedLiberationFront || state.CurrentLocation!="school") throw new InvalidOperationException("Expedition moved/joined player or did not complete.");
+            Apply(state.Travel("home",definitions,()=>1)); yield return null;
+            yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"HOME-AFTER-EXPEDITION.png"));
+            if(state.CurrentLocation!="home" || state.HomeStorage.Count("burner")!=1 || !store.TryLoad(out reloaded,out _) || reloaded.CompanionTrust!=3) throw new InvalidOperationException("Original home/storage or expedition autosave failed.");
+            state=SurvivalState.NewGame(GameDifficulty.NORMAL,definitions); state.hour=23; state.Vitals.Hunger=100; state.Vitals.CurrentHP=1; state.AdvanceTime(1,definitions); page="home"; Render();
+            if(!root.GetComponentsInChildren<Text>().Any(x=>x.text=="기록이 멈췄다")) throw new InvalidOperationException("Diary displaced death screen.");
+            Debug.Log("VD_DAILY_LIFE_UI_OK: neighbor, actual diary before morning, first broadcast gate, pre-Garak news, Jiwoo, saved expedition choices, home return and death priority.");
+            yield return null; Application.Quit();
+        }
         IEnumerator SmokeThirst()
         {
             string dir=Path.GetFullPath("Builds/ThirstVerification"); Directory.CreateDirectory(dir);
@@ -886,7 +1086,7 @@ namespace VanishingDays
                 foreach(var scroll in root.GetComponentsInChildren<ScrollRect>()) scroll.verticalNormalizedPosition=0;
                 yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"LOOT-REMAINING-bottom.png"));
                 Apply(state.Travel("home",definitions,()=>1)); state.HomeStorage.Add("wood",20); state.HomeStorage.Add("tools",10);
-                ClickGameButton("문·정비");
+                ClickGameButton("제작");
                 for(int upgrade=0;upgrade<3;upgrade++) ClickGameButton("보강한다");
                 if(state.DoorLevel!=3) throw new InvalidOperationException("Door upgrade buttons failed.");
                 yield return null; yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"DOOR-UPGRADES.png"));

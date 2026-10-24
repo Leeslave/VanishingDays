@@ -39,6 +39,8 @@ namespace VanishingDays
                     if(restored?.schemaVersion==7) { restored.Sleepiness=0; restored.SleepHours=6; restored.schemaVersion=8; }
                     if(restored?.schemaVersion==8) { restored.UpgradeWaterSupply(definitions); restored.schemaVersion=9; }
                     if(restored?.schemaVersion==9) { restored.Thirst=restored.UnlimitedWater?0:Math.Max(0,Math.Min(100,restored.HydrationHours*10)); restored.schemaVersion=10; }
+                    if(restored?.schemaVersion==10) { restored.UpgradeDailyLife(definitions); restored.schemaVersion=11; }
+                    if(restored?.schemaVersion==11) { restored.UpgradeCrafting(definitions); restored.schemaVersion=12; }
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
                     Validate(restored,definitions,legacyVitals);
@@ -51,7 +53,7 @@ namespace VanishingDays
         }
         public static void Validate(SurvivalState s,SurvivalDefinitions data,bool allowLegacyOverCap=false)
         {
-            if(s==null || s.schemaVersion!=10 || s.day<1 || s.day>365000 || s.hour<0 || s.hour>=24 || data.Location(s.CurrentLocation)==null || !Enum.IsDefined(typeof(GameDifficulty),s.Difficulty)) throw new InvalidDataException("Invalid session header.");
+            if(s==null || s.schemaVersion!=12 || s.day<1 || s.day>365000 || s.hour<0 || s.hour>=24 || data.Location(s.CurrentLocation)==null || !Enum.IsDefined(typeof(GameDifficulty),s.Difficulty)) throw new InvalidDataException("Invalid session header.");
             if(s.Vitals==null || s.Vitals.BaseMaxHP<=0 || s.Vitals.CurrentHP<0 || s.Vitals.CurrentHP>s.Vitals.BaseMaxHP || s.Vitals.Hunger<0 || s.Vitals.Hunger>100 || s.Vitals.Injuries==null || s.Story==null || s.Locations==null || s.Locations.Count!=data.locations.Length || s.journal==null || s.Equipment==null || s.InstalledSecurity==null || s.RandomState==0) throw new InvalidDataException("Invalid session state.");
             if(s.InjuryRestProgress<0 || s.InjuryRestProgress>=data.TEMP_BALANCE.injuryRestHours || s.MedicalLootVersion<0 || s.MedicalLootVersion>1) throw new InvalidDataException("Invalid recovery progress.");
             if(s.HydrationHours<0 || s.HydrationHours>=data.TEMP_BALANCE.waterIntervalHours || s.UnlimitedWater && s.HydrationHours!=0) throw new InvalidDataException("Invalid water progress.");
@@ -64,6 +66,9 @@ namespace VanishingDays
                 ValidateInventory(matches[0].remaining,data);
             }
             foreach(var id in s.Equipment) if(data.Item(id)==null || (data.Item(id).strength==0 && data.Item(id).defense==0) || s.Equipment.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid equipment.");
+            if(s.Equipment.FindAll(x=>data.Item(x).strength>0).Count>1 || s.Equipment.FindAll(x=>data.Item(x).strength==0 && data.Item(x).defense>0).Count>1) throw new InvalidDataException("Multiple items in one equipment slot.");
+            if(s.InstalledFacilities==null) throw new InvalidDataException("Missing crafting facilities.");
+            foreach(var id in s.InstalledFacilities) if(data.crafting.Find(id)==null || !data.crafting.Find(id).facility || s.InstalledFacilities.FindAll(x=>x==id).Count!=1 || !string.IsNullOrEmpty(data.crafting.Find(id).requiresFacility) && !s.HasFacility(data.crafting.Find(id).requiresFacility)) throw new InvalidDataException("Invalid crafting facility.");
             foreach(var id in s.InstalledSecurity) if(data.Security(id)==null || s.InstalledSecurity.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid security.");
             foreach(var injury in s.Vitals.Injuries) if(injury==null || float.IsNaN(injury.recoveryPenalty) || injury.recoveryPenalty<0 || injury.recoveryPenalty>1) throw new InvalidDataException("Invalid injury.");
             if(float.IsNaN(s.Vitals.HungerPenalty) || s.Vitals.HungerPenalty<0 || s.Vitals.HungerPenalty>1) throw new InvalidDataException("Invalid hunger penalty.");
@@ -76,6 +81,20 @@ namespace VanishingDays
             ValidateWorld(s,data);
             ValidateStory(s,data);
             ValidateErasureNews(s,data);
+            ValidateDailyLife(s);
+        }
+        static void ValidateDailyLife(SurvivalState s)
+        {
+            if(s.DailyFacts==null || s.Diaries==null || s.MorningIssues==null || s.DiaryStartDay<1 || s.DiaryStartDay>s.day || s.LastDiaryDay<0 || s.LastDiaryDay>=s.day || s.MorningLastDay<0 || s.MorningLastDay>s.day || s.MorningDeferredDay<0 || s.MorningDeferredDay>s.day || s.PartialDiaryDay<0 || s.PartialDiaryDay>s.day) throw new InvalidDataException("Invalid life records.");
+            int previous=0;
+            foreach(var entry in s.Diaries) { if(entry==null || entry.day<=previous || entry.day>=s.day || string.IsNullOrWhiteSpace(entry.body)) throw new InvalidDataException("Invalid diary."); previous=entry.day; }
+            if(s.Diaries.Count>0 && previous!=s.LastDiaryDay) throw new InvalidDataException("Invalid diary date.");
+            previous=0;
+            foreach(var issue in s.MorningIssues) { if(issue==null || issue.day<=previous || issue.day>s.day || string.IsNullOrWhiteSpace(issue.body) || issue.kind!="first" && issue.kind!="regular" && issue.kind!="legacy" || !s.Story.HasRadio) throw new InvalidDataException("Invalid morning issue."); previous=issue.day; }
+            foreach(var fact in s.DailyFacts) if(fact==null || fact.day<s.DiaryStartDay || fact.day>s.day || fact.hour<0 || fact.hour>23 || fact.count<1 || string.IsNullOrWhiteSpace(fact.kind) || string.IsNullOrWhiteSpace(fact.text)) throw new InvalidDataException("Invalid daily fact.");
+            if(s.NeighborStage<0 || s.NeighborStage>3 || s.NeighborGreetings<0 || s.NeighborLastDay<0 || s.NeighborLastDay>s.day || !Enum.IsDefined(typeof(CompanionStep),s.Companion) || s.CompanionTrust<0 || s.CompanionTrust>3 || s.CompanionReadyDay<0 || s.CompanionMeal==null) throw new InvalidDataException("Invalid companion/neighbor progress.");
+            if(s.Companion!=CompanionStep.None && (!s.Story.HasMetJiwoo || s.TotalDongrimMeetings<3) || s.HasActiveCompanion && (s.CurrentLocation!="school" || s.PendingEncounter!=null || s.HasActiveCrowdIncident || s.PendingDongrimMeeting)) throw new InvalidDataException("Invalid active companion story.");
+            if(s.CompanionMeal!="" && s.CompanionMeal!="rice_meal" && s.CompanionMeal!="spam_meal" && s.CompanionMeal!="tuna_meal" && s.CompanionMeal!="ramen_meal") throw new InvalidDataException("Invalid companion meal.");
         }
         static void ValidateErasureNews(SurvivalState s,SurvivalDefinitions data)
         {

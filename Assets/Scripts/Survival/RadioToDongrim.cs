@@ -54,6 +54,7 @@ namespace VanishingDays
                 InjuryRestProgress=0; Vitals.Damage(damage);
                 Vitals.Injuries.Add(new Injury { kind="군중 속에서 입은 부상",recoveryPenalty=data.TEMP_BALANCE.injuryCapPenalty });
                 Vitals.ClampToRecoveryCap(data.TEMP_BALANCE);
+                RecordFact("injury","가락시장 군중 속에서 부상을 입었다.");
             }
             Crowd.BagChoice=dropBag?"drop":"hold";
             Crowd.Consequence=(dropBag?"가방을 놓고 몸을 틀었다. ":"가방을 붙잡고 버티다 부상을 입었다. ")+"체력 손실 "+damage+". "+LoseSupplies(Backpack,loss,data);
@@ -73,7 +74,7 @@ namespace VanishingDays
                     Story.CrowdIncidentResolved=true; Story.DongrimContactHintReceived=true;
                     Crowd.Step=CrowdStoryStep.Completed;
                     DongrimMeetings=1; LastDongrimMeetingDay=day;
-                    InitializeErasureNews();
+                    RecordFact("story","가락시장 군중 속에서 최동림의 도움으로 빠져나왔다. 다음에 다시 만나기로 했다.");
                     return Report(Script(data.radioStory.completed)+"\n\n"+DongrimHint(data));
                 default:return "먼저 어떻게 버틸지 선택해야 한다.";
             }

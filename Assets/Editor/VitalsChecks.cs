@@ -48,7 +48,7 @@ namespace VanishingDays.Editor
             for(int i=0;i<3;i++)old.Vitals.Injuries.Add(new Injury{recoveryPenalty=.1f});
             old.InstalledSecurity.Add("analog"); old.Locations.Find(x=>x.id=="store").remaining.Remove("tuna",1);
             File.WriteAllText(path,JsonUtility.ToJson(old));
-            check(store.TryLoad(out s,out _) && s.schemaVersion==10 && s.Vitals.CurrentHP==350 && s.Vitals.CurrentMental==100 && s.Vitals.BaseMaxMental==100,"Old save did not initialize mental health/clamp HP.");
+            check(store.TryLoad(out s,out _) && s.schemaVersion==12 && s.Vitals.CurrentHP==350 && s.Vitals.CurrentMental==100 && s.Vitals.BaseMaxMental==100,"Old save did not initialize mental health/clamp HP.");
             check(s.Vitals.Injuries.Count==3 && s.InstalledSecurity.Contains("analog") && s.Locations.Find(x=>x.id=="store").remaining.Count("tuna")==0,"Vitals migration reset old progress.");
             s.Vitals.AdjustMental(-12); store.Save(s); check(store.TryLoad(out s,out _) && s.Vitals.CurrentMental==88,"Reload reset an existing mental value.");
             foreach(string file in new[]{path,path+".bak",path+".tmp"})if(File.Exists(file))File.Delete(file);

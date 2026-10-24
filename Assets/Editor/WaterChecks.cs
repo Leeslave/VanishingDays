@@ -54,7 +54,7 @@ namespace VanishingDays.Editor
                 s=fresh(GameDifficulty.NORMAL); s.schemaVersion=8; s.HomeStorage.Remove("water",8);
                 foreach(var place in s.Locations) place.remaining.stacks.RemoveAll(x=>x.id=="water");
                 s.Locations.Find(x=>x.id=="store").remaining.Remove("tuna",1); s.Vitals.AdjustMental(-30); File.WriteAllText(path,JsonUtility.ToJson(s));
-                check(saves.TryLoad(out s,out _) && s.schemaVersion==10 && s.HomeStorage.Count("water")==6 && s.Backpack.Count("water")==2 && s.Vitals.CurrentMental==70,"Legacy water upgrade lost progress or initial supply.");
+                check(saves.TryLoad(out s,out _) && s.schemaVersion==12 && s.HomeStorage.Count("water")==6 && s.Backpack.Count("water")==2 && s.Vitals.CurrentMental==70,"Legacy water upgrade lost progress or initial supply.");
                 check(s.Locations.Find(x=>x.id=="store").remaining.Count("water")==4 && s.Locations.Find(x=>x.id=="store").remaining.Count("tuna")==0,"Migration replenished old loot or missed water.");
                 s.Locations.Find(x=>x.id=="store").remaining.Remove("water",4); s.HydrationHours=5; saves.Save(s);
                 check(saves.TryLoad(out s,out _) && s.HydrationHours==5 && s.Locations.Find(x=>x.id=="store").remaining.Count("water")==0 && s.HomeStorage.Count("water")==6,"Reload regenerated exhausted water or reset timer.");
@@ -71,7 +71,7 @@ namespace VanishingDays.Editor
                 s=fresh(GameDifficulty.NORMAL); s.AdvanceTime(6,data); check(s.Thirst==0 && s.HomeStorage.Count("water")==7,"Scheduled drinking failed to quench thirst.");
                 s=fresh(GameDifficulty.EASY); s.AdvanceTime(24,data); check(s.Thirst==0,"Unlimited water accumulated thirst.");
                 s=fresh(GameDifficulty.NORMAL); s.schemaVersion=9; s.HydrationHours=4; s.Vitals.AdjustMental(-21); File.WriteAllText(path,JsonUtility.ToJson(s));
-                check(saves.TryLoad(out s,out _) && s.schemaVersion==10 && s.Thirst==40 && s.HydrationHours==4 && s.HomeStorage.Count("water")==8 && s.Vitals.CurrentMental==79,"v9 upgrade reset hydration, inventory or mental health.");
+                check(saves.TryLoad(out s,out _) && s.schemaVersion==12 && s.Thirst==40 && s.HydrationHours==4 && s.HomeStorage.Count("water")==8 && s.Vitals.CurrentMental==79,"v9 upgrade reset hydration, inventory or mental health.");
                 saves.Save(s); check(saves.TryLoad(out s,out _) && s.Thirst==40,"Thirst did not persist in new saves.");
                 foreach(string file in new[]{path,path+".bak",path+".tmp"})if(File.Exists(file))File.Delete(file);
                 foreach(int value in new[]{-1,101}) { s.Thirst=value; File.WriteAllText(path,JsonUtility.ToJson(s)); check(!saves.TryLoad(out _,out _),"Out-of-range thirst accepted."); }

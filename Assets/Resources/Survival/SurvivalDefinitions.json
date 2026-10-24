@@ -156,6 +156,79 @@
       "id": "water",
       "name": "생수",
       "unit": "병"
+    },
+    {
+      "id": "scrap",
+      "name": "고철",
+      "unit": "개"
+    },
+    {
+      "id": "cloth",
+      "name": "헝겊",
+      "unit": "개"
+    },
+    {
+      "id": "cord",
+      "name": "끈",
+      "unit": "개"
+    },
+    {
+      "id": "tape",
+      "name": "접착테이프",
+      "unit": "개"
+    },
+    {
+      "id": "raw_water",
+      "name": "혼탁한 물",
+      "unit": "병"
+    },
+    {
+      "id": "club",
+      "name": "나무 곤봉",
+      "unit": "개",
+      "strength": 2
+    },
+    {
+      "id": "wrapped_club",
+      "name": "헝겊 곤봉",
+      "unit": "개",
+      "strength": 4
+    },
+    {
+      "id": "nail_bat",
+      "name": "못 박힌 방망이",
+      "unit": "개",
+      "strength": 6
+    },
+    {
+      "id": "pipe_club",
+      "name": "쇠파이프 곤봉",
+      "unit": "개",
+      "strength": 4
+    },
+    {
+      "id": "scrap_spear",
+      "name": "고철 창",
+      "unit": "개",
+      "strength": 5
+    },
+    {
+      "id": "machete",
+      "name": "손잡이 칼날",
+      "unit": "개",
+      "strength": 7
+    },
+    {
+      "id": "hatchet",
+      "name": "간이 도끼",
+      "unit": "개",
+      "strength": 8
+    },
+    {
+      "id": "reinforced_blade",
+      "name": "보강 칼날",
+      "unit": "개",
+      "strength": 10
     }
   ],
   "locations": [
@@ -193,6 +266,26 @@
         {
           "id": "water",
           "amount": 4
+        },
+        {
+          "id": "scrap",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "cord",
+          "amount": 1
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        },
+        {
+          "id": "raw_water",
+          "amount": 2
         }
       ]
     },
@@ -230,6 +323,26 @@
         {
           "id": "water",
           "amount": 4
+        },
+        {
+          "id": "scrap",
+          "amount": 5
+        },
+        {
+          "id": "cloth",
+          "amount": 6
+        },
+        {
+          "id": "cord",
+          "amount": 3
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        },
+        {
+          "id": "raw_water",
+          "amount": 3
         }
       ],
       "requiresLocation": "store",
@@ -261,6 +374,26 @@
         {
           "id": "water",
           "amount": 6
+        },
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "cloth",
+          "amount": 6
+        },
+        {
+          "id": "cord",
+          "amount": 3
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        },
+        {
+          "id": "raw_water",
+          "amount": 4
         }
       ],
       "requiresLocation": "empty_house",
@@ -306,6 +439,18 @@
         {
           "id": "water",
           "amount": 3
+        },
+        {
+          "id": "scrap",
+          "amount": 1
+        },
+        {
+          "id": "cloth",
+          "amount": 6
+        },
+        {
+          "id": "tape",
+          "amount": 3
         }
       ]
     },
@@ -337,6 +482,22 @@
         {
           "id": "water",
           "amount": 2
+        },
+        {
+          "id": "scrap",
+          "amount": 12
+        },
+        {
+          "id": "cloth",
+          "amount": 3
+        },
+        {
+          "id": "cord",
+          "amount": 6
+        },
+        {
+          "id": "tape",
+          "amount": 5
         }
       ]
     },
@@ -344,7 +505,7 @@
       "id": "shelter",
       "name": "주민회관 지하",
       "mapLabel": "주민회관",
-      "description": "최동림이 확인한 우회로 끝의 주민회관. 대피소로 쓰이던 지하에 공동 취사용 식량이 남았다. 더 이상 관리하는 사람은 보이지 않는다.",
+      "description": "최동림이 확인한 우회로 끝의 주민회관. 여러 연락책이 잠시 물자를 놓고 정보를 나누던 곳이다. 모두가 함께 사는 본부는 아니며, 지하에 남은 물자를 살펴볼 수 있다.",
       "travelHours": 3,
       "searchHours": 2,
       "requiresDongrimMeetings": 3,
@@ -372,6 +533,26 @@
         {
           "id": "water",
           "amount": 8
+        },
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "cloth",
+          "amount": 8
+        },
+        {
+          "id": "cord",
+          "amount": 5
+        },
+        {
+          "id": "tape",
+          "amount": 3
+        },
+        {
+          "id": "raw_water",
+          "amount": 5
         }
       ]
     }
@@ -572,7 +753,7 @@
     "thirdMeeting": "학교 게시판 앞에서 동림이 낡은 대피 안내도를 떼어냈다.\n\n최동림: “물자를 나눈다는 말만 믿고 몰려가면 지난번처럼 돼. 먼저 길부터 확인해야 해.”\n\n{PlayerNickname}: “당신이 말한 사람들은요?”\n\n최동림: “아직 연락이 닿는 사람들이 있어. 지금 바로 데려가겠다는 뜻은 아니야. 서로 돌아올 수 있는지부터 알아야지.”\n\n그는 주민회관 지하로 이어지는 우회로를 지도에 그렸다. 공동 취사용 식량이 남아 있다는 말도 덧붙였다.",
     "patrolMeeting": "최동림이 지도의 가장자리를 접으며 다가왔다.\n\n최동림: “다시 봐서 다행이네. 새로 끊긴 길이나 사람들이 모이는 곳을 봤어?”\n\n서로 지나온 길과 위험한 구간을 비교했다. 이미 털어낸 건물도 누군가와 만나는 약속 장소로는 쓸 수 있었다.\n\n최동림: “먹을 걸 조금 가져왔으면 붕대랑 바꿀 수 있어. 없어도 괜찮아. 들은 소식만 알려줘.”",
     "secondCompleted": "동림이 알려준 철물점 뒷창고를 지도에 표시했다. 내일 낮부터는 고등학교 게시판 앞에서 그를 만날 수 있다.",
-    "thirdCompleted": "주민회관 지하로 가는 길을 기록했다. 동림은 이틀 간격으로 빈집 골목과 고등학교를 번갈아 순찰하겠다고 했다. 아직 누군가의 조직에 들어간 것은 아니지만 다시 만날 사람이 생겼다.",
+    "thirdCompleted": "주민회관 지하로 가는 길을 기록했다. 동림은 이틀 간격으로 빈집 골목과 고등학교를 번갈아 순찰하겠다고 했다. 각자 거처에서 지내며 다시 만나기로 했다. 다음 날 이후 낮에는 학교에서 짧은 동행 탐사를 의논할 수 있다.",
     "patrolCompleted": "순찰에서 확인한 내용을 기록했다. 동림과 다음 만남을 약속하고 각자의 길로 돌아섰다."
   }
 }

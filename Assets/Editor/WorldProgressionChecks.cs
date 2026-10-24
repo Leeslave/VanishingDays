@@ -28,7 +28,7 @@ namespace VanishingDays.Editor
             s.Travel("store",data,()=>1); s.Search(data,()=>1);
             check(s.IsLocationUnlocked("empty_house",data) && !s.IsLocationUnlocked("school",data),"Store unlock skipped a stage.");
             check(s.LootPercent("store",data)>0 && s.LootPercent("store",data)<100 && s.HasSearchWork("store",data),"Remaining water did not keep the store searchable.");
-            var storePool=s.Locations.Find(x=>x.id=="store").remaining; storePool.Remove("water",storePool.Count("water"));
+            var storePool=s.Locations.Find(x=>x.id=="store").remaining; foreach(var stack in storePool.stacks) stack.amount=0;
             check(s.LootPercent("store",data)==100 && s.LootSummary("store",data).Contains("소진"),"Exhausted store status wrong.");
             hour=s.hour; rng=s.RandomState; s.Search(data,()=>0);
             check(s.hour==hour && s.RandomState==rng && s.PendingEncounter==null,"Empty search spent time/triggered robbery.");
@@ -75,7 +75,7 @@ namespace VanishingDays.Editor
             var legacy=FirstMeeting(data); legacy.schemaVersion=4; legacy.Locations.RemoveAll(x=>x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter");
             legacy.Locations.Find(x=>x.id=="store").remaining.Remove("tuna",1); legacy.Locations.Find(x=>x.id=="store").searches=1; legacy.InstalledSecurity.Add("analog");
             legacy.day=7; File.WriteAllText(path,JsonUtility.ToJson(legacy));
-            check(saves.TryLoad(out var migrated,out _) && migrated.schemaVersion==10 && migrated.Locations.Count==8 && migrated.TotalDongrimMeetings==1 && migrated.NextDongrimDay==7,"v4 completed-story migration failed.");
+            check(saves.TryLoad(out var migrated,out _) && migrated.schemaVersion==12 && migrated.Locations.Count==8 && migrated.TotalDongrimMeetings==1 && migrated.NextDongrimDay==7,"v4 completed-story migration failed.");
             check(migrated.Locations.Find(x=>x.id=="store").remaining.Count("tuna")==0 && migrated.InstalledSecurity.Contains("analog") && migrated.IsLocationUnlocked("school",data) && !migrated.IsLocationUnlocked("hardware",data),"Migration replenished loot/reset security/unlocked story too early.");
             saves.Save(migrated); check(saves.TryLoad(out migrated,out _) && migrated.Locations.Find(x=>x.id=="store").remaining.Count("tuna")==0,"Migration was not idempotent.");
             // A malformed current save must not bypass the authored encounter guards.

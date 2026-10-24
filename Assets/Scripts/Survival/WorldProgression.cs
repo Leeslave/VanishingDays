@@ -99,6 +99,7 @@ namespace VanishingDays
             var script=data.dongrimFollowup;
             string body=TotalDongrimMeetings==1?script.secondCompleted:TotalDongrimMeetings==2?script.thirdCompleted:script.patrolCompleted;
             DongrimMeetings=TotalDongrimMeetings+1; LastDongrimMeetingDay=day; PendingDongrimMeeting=false;
+            RecordFact("story","최동림과 "+data.Location(CurrentLocation).name+"에서 재회하고 다음 약속을 확인했다.");
             Report(Script(body)+"\n\n"+outcome);
             DiscoverLocations(data);
             return Report(lastReport+"\n\n"+DongrimHint(data));

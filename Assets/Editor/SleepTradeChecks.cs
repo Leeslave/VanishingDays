@@ -64,7 +64,7 @@ namespace VanishingDays.Editor
                 string path=Path.GetFullPath("Builds/Validation/sleep-trade-save.json"); var saves=new SessionSaveStore(path,data);
                 foreach(string file in new[]{path,path+".bak",path+".tmp"}) if(File.Exists(file)) File.Delete(file);
                 s=fresh(); s.schemaVersion=7; s.Vitals.AdjustMental(-21); File.WriteAllText(path,JsonUtility.ToJson(s));
-                check(saves.TryLoad(out s,out _) && s.schemaVersion==10 && s.Vitals.CurrentMental==79 && s.SleepHours==6,"Old save lost mental health or received retroactive sleep debt.");
+                check(saves.TryLoad(out s,out _) && s.schemaVersion==12 && s.Vitals.CurrentMental==79 && s.SleepHours==6,"Old save lost mental health or received retroactive sleep debt.");
                 s.Sleepiness=67; s.SleepHours=4; s.Vitals.MoralHarm(10); s.PendingEncounter=new Encounter{kind="trader",context="길거리"}; saves.Save(s);
                 check(saves.TryLoad(out s,out _) && s.Sleepiness==67 && s.SleepHours==4 && s.Vitals.MentalCap==90 && s.PendingEncounter.kind=="trader","Sleep/moral cap/pending trader not persisted.");
                 foreach(string file in new[]{path,path+".bak",path+".tmp"}) if(File.Exists(file)) File.Delete(file);

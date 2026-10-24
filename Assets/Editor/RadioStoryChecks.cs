@@ -26,7 +26,7 @@ namespace VanishingDays.Editor
             s.ListenRadio(data); s.Travel("supply_site",data,()=>0); s.ApproachCrowd(data);
             check(!s.Story.HasHeardSPBroadcast && !s.Story.SupplyRumorUnlocked && s.CurrentLocation=="home" && s.hour==hour && s.RandomState==rng && !s.AwayFromHome,"Pre-radio gates leaked.");
             s=WithRadio(data); s.Rest(data); check(!s.Story.SupplyRumorUnlocked && !s.Story.CrowdIncidentStarted && !s.Story.HasMetDongrim,"Radio acquisition auto-started story.");
-            s.Travel("store",data,()=>1); s.ListenRadio(data); check(!s.Story.HasHeardSPBroadcast,"First broadcast played outside home.");
+            s.Travel("store",data,()=>1); s.ListenRadio(data); check(s.Story.HasHeardSPBroadcast,"Carried radio could not receive outside home.");
             s=WithRadio(data); hour=s.hour; int day=s.day; rng=s.RandomState; s.ListenRadio(data);
             check(s.Story.HasHeardSPBroadcast && s.Story.SupplyRumorUnlocked && s.IsLocationUnlocked("supply_site",data),"Broadcast did not unlock rumor/site.");
             check(s.hour==hour && s.day==day && s.RandomState==rng && !s.Story.HasMetDongrim && !s.Story.CrowdIncidentStarted,"Broadcast changed clock/RNG/incident.");
@@ -96,7 +96,7 @@ namespace VanishingDays.Editor
             }
             var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); legacy.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(legacy));
-            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=10 || migrated.Locations.Count!=8 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
+            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=12 || migrated.Locations.Count!=8 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
             migrated.ListenRadio(data); saves.Save(migrated); if(!saves.TryLoad(out migrated,out _) || !migrated.Story.SupplyRumorUnlocked) throw new Exception("Migrated radio unlock failed.");
             var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); preRadio.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(preRadio));

@@ -39,7 +39,7 @@ namespace VanishingDays
         public List<ErasureReport> ErasureHistory=new List<ErasureReport>();
         public int LastErasureDay, ErasureReadDay;
         public uint ErasureRandomState=2463534242;
-        public bool ErasureNewsEnabled => Story.HasRadio && Story.CrowdIncidentResolved;
+        public bool ErasureNewsEnabled => Story.HasRadio;
         public bool HasUnreadErasureNews => ErasureHistory.Exists(x=>x.day>ErasureReadDay);
         public ErasureReport NextUnreadErasureNews => ErasureHistory.Find(x=>x.day>ErasureReadDay);
         public void InitializeErasureNews()
