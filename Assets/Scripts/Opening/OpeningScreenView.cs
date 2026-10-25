@@ -8,7 +8,8 @@ namespace VanishingDays
 {
     public sealed class OpeningScreenView : MonoBehaviour
     {
-        static readonly Color Background=new Color32(17,23,25,255), Paper=new Color32(226,221,206,255), Muted=new Color32(151,159,151,255), Accent=new Color32(211,173,110,255);
+        static readonly Color Background=new Color32(11,17,19,255), Paper=new Color32(230,223,204,255), Muted=new Color32(155,163,157,255), Accent=new Color32(217,166,94,255),
+            Card=new Color32(18,26,28,255), Edge=new Color32(38,50,49,255), Selected=new Color32(43,38,28,255), AccentText=new Color32(233,190,126,255), OnAccent=new Color32(20,17,11,255);
         RectTransform root;
         Font font;
         OpeningFlowController flow;
@@ -43,12 +44,32 @@ namespace VanishingDays
         {
             var rect=Rect("Text",parent??root,x,y,w,h); var label=rect.gameObject.AddComponent<Text>(); label.font=font; label.text=value; label.fontSize=size; label.color=color; label.supportRichText=false; label.lineSpacing=1.35f; label.raycastTarget=false; label.horizontalOverflow=HorizontalWrapMode.Wrap; label.verticalOverflow=VerticalWrapMode.Truncate; return label;
         }
-        Button Button(string caption,float x,float w,Action click,float y=1410)
+        // primary: the solid Amber call to action; otherwise an Edge-framed card that turns Amber when selected.
+        Button Button(string caption,float x,float w,Action click,float y=1410,float h=88,bool primary=true,bool selected=false)
         {
-            var rect=Panel(caption,x,y,w,88,new Color32(51,60,51,255));
-            var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=rect.GetComponent<Image>();
-            var colors=button.colors; colors.highlightedColor=new Color(1.25f,1.2f,1.1f); colors.disabledColor=new Color(.45f,.45f,.45f,.6f); button.colors=colors;
-            Text(caption,24,23,w-48,52,28,Accent,rect); button.onClick.AddListener(()=>click()); return button;
+            var rect=Panel(caption,x,y,w,h,primary?Accent:selected?Accent:Edge);
+            var face=Panel("Fill",2,2,w-4,h-4,primary?Accent:selected?Selected:Card,rect).GetComponent<Image>();
+            var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=face;
+            var colors=button.colors; colors.highlightedColor=new Color(1.2f,1.18f,1.1f); colors.pressedColor=new Color(.8f,.76f,.68f); colors.disabledColor=new Color(.5f,.5f,.5f,.6f); button.colors=colors;
+            var label=Text(caption,28,0,w-56,h,28,primary?OnAccent:Paper,rect); label.alignment=TextAnchor.MiddleLeft; label.fontStyle=FontStyle.Bold;
+            button.onClick.AddListener(()=>click()); return button;
+        }
+        RawImage AtlasIcon(Texture2D atlas,int index,float x,float y,float size,Transform parent)
+        {
+            if(atlas==null) return null;
+            var image=Rect("Icon",parent,x,y,size,size).gameObject.AddComponent<RawImage>(); image.texture=atlas; image.raycastTarget=false;
+            image.uvRect=new UnityEngine.Rect((index%4)*.25f,index<4?.25f:0,.25f,.25f); return image;
+        }
+        Texture2D fadeTexture;
+        void Fade(float x,float y,float w,float h)
+        {
+            if(fadeTexture==null)
+            {
+                fadeTexture=new Texture2D(1,64,TextureFormat.RGBA32,false){wrapMode=TextureWrapMode.Clamp};
+                for(int i=0;i<64;i++) fadeTexture.SetPixel(0,i,new Color(Background.r,Background.g,Background.b,Mathf.SmoothStep(0,1,1-i/63f)));
+                fadeTexture.Apply();
+            }
+            var image=Rect("Fade",root,x,y,w,h).gameObject.AddComponent<RawImage>(); image.texture=fadeTexture; image.raycastTarget=false;
         }
         void ScrollBody(string body)
         {
@@ -69,28 +90,43 @@ namespace VanishingDays
             Panel("Archive background",0,0,900,1600,Background);
             if(screen.kind=="Start")
             {
-                var image=Rect("Seoul archive",root,0,0,900,650).gameObject.AddComponent<RawImage>();
+                var image=Rect("Seoul archive",root,0,0,900,940).gameObject.AddComponent<RawImage>();
                 image.texture=Resources.Load<Texture2D>("Art/SeoulErasure"); image.raycastTarget=false;
                 if(image.texture!=null)
                 {
-                    float portion=(900f/650)/(image.texture.width/(float)image.texture.height);
-                    image.uvRect=new UnityEngine.Rect((1-portion)/2,0,portion,1);
+                    float portion=(900f/940)/(image.texture.width/(float)image.texture.height);
+                    image.uvRect=new UnityEngine.Rect((1-portion)*.38f,0,portion,1);
                 }
-                Text("Vanishing Days",64,820,772,100,64,Paper);
-                Text("배니싱 데이즈",64,940,772,60,32,Muted);
-                Text("난이도",64,1090,772,42,26,Muted);
-                string[] names={"쉬움","보통","어려움"};
+                Fade(0,440,900,502);
+                Text("SEOUL · 2031",48,40,600,34,22,new Color32(201,194,175,255));
+                Text("Vanishing Days",48,668,804,110,88,new Color32(239,233,216,255)).fontStyle=FontStyle.Bold;
+                Text("배니싱 데이즈",48,790,240,40,28,Muted);
+                Panel("Title rule",250,810,56,2,Edge);
+                Text("소멸일지",322,790,300,40,28,Muted);
+                Text("난이도",48,862,300,36,24,Muted).fontStyle=FontStyle.Bold;
+                string[] names={"쉬움","보통","어려움"}, tags={"물 무제한","물 8병","물 4병"};
                 for(int i=0;i<3;i++)
                 {
-                    var difficulty=(GameDifficulty)i;
-                    var option=Button(names[i]+(SelectedDifficulty==difficulty?" ✓":""),64+i*266,240,()=>{SelectedDifficulty=difficulty; Render();},1160);
-                    if(SelectedDifficulty==difficulty) option.targetGraphic.color=new Color32(69,78,59,255);
+                    var difficulty=(GameDifficulty)i; bool chosen=SelectedDifficulty==difficulty;
+                    var option=Button(names[i],48+i*273,257,()=>{SelectedDifficulty=difficulty; Render();},906,128,false,chosen);
+                    var name=option.transform.Find("Text").GetComponent<Text>(); name.rectTransform.anchoredPosition=new Vector2(28,-18); name.rectTransform.sizeDelta=new Vector2(200,44); name.alignment=TextAnchor.UpperLeft; name.fontSize=30;
+                    if(chosen) Panel("Chosen",213,26,18,18,Accent,option.transform);
+                    Text(tags[i],28,78,200,34,22,Muted,option.transform);
                 }
                 string initial=SelectedDifficulty==GameDifficulty.EASY?"스팸 10 · 참치 10 · 쌀 10kg":SelectedDifficulty==GameDifficulty.HARD?"스팸 3 · 참치 1 · 쌀 1kg":"스팸 5 · 참치 5 · 쌀 3kg";
                 int bandages=SelectedDifficulty==GameDifficulty.EASY?5:SelectedDifficulty==GameDifficulty.HARD?1:3;
                 string water=SelectedDifficulty==GameDifficulty.EASY?"물 무제한":"물 "+(SelectedDifficulty==GameDifficulty.HARD?4:8)+"병 · 식수와 조리에 사용";
-                Text(initial+"\n붕대 "+bandages+"개 · 부르스타 1개\n"+water,64,1280,772,104,25,Muted);
-                Button(screen.button,64,772,flow.Next);
+                var loadout=Panel("Loadout",48,1062,804,300,Edge); Panel("Fill",2,2,800,296,Card,loadout);
+                Text("시작 물품",28,20,400,30,20,Muted,loadout);
+                var atlas=Resources.Load<Texture2D>("Art/SurvivalAtlas");
+                string[] rows={initial,"붕대 "+bandages+"개 · 부르스타 1개",water}; int[] icons={7,6,0};
+                for(int i=0;i<3;i++)
+                {
+                    AtlasIcon(atlas,icons[i],28,62+i*76,60,loadout);
+                    Text(rows[i],112,62+i*76,664,60,26,i==2 && SelectedDifficulty==GameDifficulty.HARD?new Color32(231,160,138,255):Paper,loadout).alignment=TextAnchor.MiddleLeft;
+                }
+                Button(screen.button,48,804,flow.Next,1404,112);
+                Text("행동 후 자동 저장",0,1538,900,34,21,Muted).alignment=TextAnchor.UpperCenter;
                 return;
             }
             Text("VANISHING DAYS  /  ARCHIVE",64,70,772,38,20,Muted);
@@ -102,7 +138,7 @@ namespace VanishingDays
             else
             {
                 ScrollBody(flow.Body);
-                if(screen.kind=="Question") { Button("예",64,374,()=>flow.Answer(true)); Button("아니오",462,374,()=>flow.Answer(false)); }
+                if(screen.kind=="Question") { Button("예",64,374,()=>flow.Answer(true)); Button("아니오",462,374,()=>flow.Answer(false),1410,88,false); }
                 else Button(screen.button,64,772,flow.Next);
             }
         }

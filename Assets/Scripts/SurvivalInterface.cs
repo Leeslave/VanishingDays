@@ -7,16 +7,14 @@ namespace VanishingDays
     {
         Texture2D survivalArt;
         string vitalsNotice="";
-        void AtlasPicture(float x,float y,float w,float h,UnityEngine.Rect uv,Transform parent=null)
+        RawImage AtlasPicture(float x,float y,float w,float h,UnityEngine.Rect uv,Transform parent=null)
         {
-            if(survivalArt==null) return;
+            if(survivalArt==null) return null;
             var image=Rect("Survival illustration",parent??root,x,y,w,h).gameObject.AddComponent<RawImage>();
-            image.texture=survivalArt; image.uvRect=uv; image.raycastTarget=false;
+            image.texture=survivalArt; image.uvRect=uv; image.raycastTarget=false; return image;
         }
-        void ArtIcon(int index,float x,float y,float w,float h,Transform parent=null)
-        {
-            AtlasPicture(x,y,w,h,new UnityEngine.Rect((index%4)*.25f,index<4?.25f:0,.25f,.25f),parent);
-        }
+        static UnityEngine.Rect IconRect(int index) => new UnityEngine.Rect((index%4)*.25f,index<4?.25f:0,.25f,.25f);
+        void ArtIcon(int index,float x,float y,float w,float h,Transform parent=null) { AtlasPicture(x,y,w,h,IconRect(index),parent); }
         int ButtonIcon(string text)
         {
             if(text.Contains("식수") || text.Contains("마시") || text.Contains("물을") || text.Contains("용수") || text.Contains("정수")) return 0;
@@ -36,13 +34,11 @@ namespace VanishingDays
             if(state.IsGameOver) return;
             bool water=state.NeedsWaterWarning, sleep=state.NeedsSleepWarning;
             if(!water && !sleep) return;
-            var strip=Box("Survival alert",48,427,804,27,new Color32(85,49,36,255));
             string warning=(water?(state.AccessibleWater==0?"식수 없음 · 물 확보 필요":"갈증 경고 · 물을 마셔야 한다"):"")+(water && sleep?"  /  ":"")+(sleep?"수면 부족 · 졸림 "+state.Sleepiness:"");
-            Label("!  "+warning+"  ›",8,1,788,26,18,Amber,strip);
-            strip.GetComponent<Image>().raycastTarget=true;
-            var button=strip.gameObject.AddComponent<Button>(); button.targetGraphic=strip.GetComponent<Image>();
-            button.interactable=state.CanAct && !state.HasLifeNotice;
-            button.onClick.AddListener(()=>{page=water?"water":state.CurrentLocation=="home"?"sleep":"map";message="";Render();});
+            var strip=Pressable("Survival alert",48,376,804,56,()=>{page=water?"water":state.CurrentLocation=="home"?"sleep":"map";message="";Render();},state.CanAct && !state.HasLifeNotice,EmberEdge,Alert).transform;
+            Box("Alert mark",20,18,8,20,Amber,strip);
+            Label(warning,44,4,736,48,22,AmberText,strip).alignment=TextAnchor.MiddleLeft;
+            Chevron(770,16,Amber,strip);
         }
         void WaterPage()
         {
@@ -56,12 +52,13 @@ namespace VanishingDays
         void VitalsNotice()
         {
             if(string.IsNullOrEmpty(vitalsNotice)) return;
-            var card=Box("Vitals notification",70,474,760,200,new Color32(48,39,30,250));
+            var card=Box("Vitals notification",48,474,804,224,Amber);
             card.GetComponent<Image>().raycastTarget=true;
-            ArtIcon(state.NeedsWaterWarning?0:1,16,16,64,64,card);
-            Label("생존 상태 경고",98,14,636,36,26,Amber,card);
-            Label(vitalsNotice,98,50,636,84,20,Paper,card);
-            Button("확인",570,142,170,48,()=>{vitalsNotice="";Render();},true,true,card);
+            Box("Fill",2,2,800,220,EmberDim,card);
+            ArtIcon(state.NeedsWaterWarning?0:1,22,22,88,88,card);
+            Label("생존 상태 경고",130,22,640,38,26,AmberText,card).fontStyle=FontStyle.Bold;
+            Label(vitalsNotice,130,64,640,84,21,Paper,card);
+            PrimaryButton("확인",604,150,180,56,()=>{vitalsNotice="";Render();},true,card);
         }
 #if UNITY_EDITOR || VD_UI_VERIFICATION
         System.Collections.IEnumerator SmokeWaterAccess()

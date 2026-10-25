@@ -55,16 +55,22 @@ namespace VanishingDays
         }
         void TutorialHomeCard()
         {
-            var card=Box("Tutorial guide",48,820,804,166,Panel);
-            Label("생존 안내 · "+(state.TutorialStep==0?"시작":state.TutorialStep+" / 5"),18,10,768,32,23,Amber,card);
-            Label(TutorialTitles[state.TutorialStep]+"\n눌러서 다음 할 일을 확인한다.",18,50,768,94,25,Paper,card);
-            card.GetComponent<Image>().raycastTarget=true;
-            var button=card.gameObject.AddComponent<Button>();button.targetGraphic=card.GetComponent<Image>();
-            button.onClick.AddListener(()=>{page="tutorial";message="";Render();});
+            var card=Pressable("Tutorial guide",48,776,804,214,()=>{page="tutorial";message="";Render();},true,Amber,EmberDim).transform;
+            ArtIcon(3,24,26,104,104,card);
+            Label("생존 안내 · "+(state.TutorialStep==0?"시작":state.TutorialStep+" / 5"),152,26,620,34,23,AmberText,card).fontStyle=FontStyle.Bold;
+            Label(TutorialTitles[state.TutorialStep],152,68,600,44,30,Paper,card).fontStyle=FontStyle.Bold;
+            Label("눌러서 다음 할 일을 확인한다.",152,120,600,34,22,Muted,card);
+            Chevron(760,95,Amber,card);
         }
+        // Shares the header strip with any survival warning, which gives up its right side.
         void TutorialReturnLink()
         {
-            if(state.TutorialActive && page!="tutorial") Button("생존 안내로 돌아가기",48,1552,804,46,()=>{page="tutorial";message="";Render();});
+            if(!state.TutorialActive || page=="tutorial") return;
+            float x=48,w=804;
+            var alert=root.Find("Survival alert") as RectTransform;
+            if(alert!=null) { alert.sizeDelta=new Vector2(460,56); alert.Find("Fill").GetComponent<RectTransform>().sizeDelta=new Vector2(456,52); foreach(var label in alert.GetComponentsInChildren<Text>()) label.rectTransform.sizeDelta=new Vector2(396,48); foreach(Transform child in alert) if(child.name=="Chevron") child.gameObject.SetActive(false); x=520; w=332; }
+            var link=Button("생존 안내로 돌아가기",x,376,w,56,()=>{page="tutorial";message="";Render();},true,true);
+            foreach(var label in link.GetComponentsInChildren<Text>()) label.fontSize=21;
         }
         void NeighborIntroductionPage()
         {
