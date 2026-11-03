@@ -4,7 +4,8 @@ using UnityEngine;
 namespace VanishingDays
 {
     public enum GameDifficulty { EASY, NORMAL, HARD }
-    [Serializable] public class ItemDefinition { public string id, name, unit; public bool consumable, protectedItem; public int hungerRelief, healing, strength, defense, injuriesTreated; }
+    [Serializable] public class ItemDefinition { public string id, name, unit; public bool consumable, protectedItem, quickUse; public int hungerRelief, thirstRelief, sleepRelief, healing, strength, defense, injuriesTreated; }
+    [Serializable] public class DifficultyRates { public GameDifficulty difficulty; public int hungerPercent, thirstPerHour, sleepinessPerHour, waterIntervalHours; }
     [Serializable] public class ItemStack
     {
         public string id; public int amount;
@@ -36,6 +37,8 @@ namespace VanishingDays
     {
         public int version;
         public SurvivalBalance TEMP_BALANCE;
+        public DifficultyRates[] difficultyRates;
+        public DifficultyRates Rates(GameDifficulty difficulty) => Array.Find(difficultyRates,x=>x.difficulty==difficulty);
         public ItemDefinition[] items;
         public LocationDefinition[] locations;
         public RecipeDefinition[] recipes;
@@ -59,6 +62,12 @@ namespace VanishingDays
         {
             if(version!=5 || TEMP_BALANCE==null || locations==null || locations.Length!=8 || items==null || recipes==null || security==null) throw new InvalidOperationException("Invalid v0.5 definitions.");
             if(erasureNews==null) throw new InvalidOperationException("Missing erasure catalog.");
+            if(difficultyRates==null || difficultyRates.Length!=3) throw new InvalidOperationException("Missing difficulty rates.");
+            foreach(GameDifficulty difficulty in Enum.GetValues(typeof(GameDifficulty)))
+            {
+                var rates=Rates(difficulty);
+                if(rates==null || Array.FindAll(difficultyRates,x=>x.difficulty==difficulty).Length!=1 || rates.hungerPercent<1 || rates.thirstPerHour<0 || rates.sleepinessPerHour<1 || rates.waterIntervalHours<1) throw new InvalidOperationException("Invalid difficulty rates.");
+            }
             erasureNews.Validate();
             if(crafting==null) throw new InvalidOperationException("Missing crafting catalog.");
             crafting.Validate(this);

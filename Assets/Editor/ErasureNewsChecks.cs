@@ -51,7 +51,7 @@ namespace VanishingDays.Editor
             store.Save(s); check(store.TryLoad(out _,out _),"Full 50-place history failed save validation.");
             var old=AfterGarak(data); old.schemaVersion=6; old.day=10; old.Vitals.AdjustMental(-21); old.HomeStorage.Remove("spam",2);
             File.WriteAllText(path,JsonUtility.ToJson(old));
-            check(store.TryLoad(out var migrated,out _) && migrated.schemaVersion==12 && migrated.ErasureHistory.Count==0 && migrated.LastErasureDay==10 && migrated.Vitals.CurrentMental==79 && migrated.HomeStorage.Count("spam")==3,"Existing session migration reset vitals/supplies or backfilled news.");
+            check(store.TryLoad(out var migrated,out _) && migrated.schemaVersion==13 && migrated.ErasureHistory.Count==0 && migrated.LastErasureDay==10 && migrated.Vitals.CurrentMental==79 && migrated.HomeStorage.Count("spam")==3,"Existing session migration reset vitals/supplies or backfilled news.");
             migrated.hour=23; migrated.AdvanceTime(9,data);
             check(migrated.NextUnreadErasureNews.day==11,"Migrated session did not start at next midnight.");
             foreach(string file in new[]{path,path+".bak",path+".tmp"}) if(File.Exists(file)) File.Delete(file);

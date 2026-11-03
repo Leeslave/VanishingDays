@@ -92,7 +92,7 @@ namespace VanishingDays.Editor
                 s=ErasureNewsChecks.AfterGarak(data); s.day=2; s.GenerateDailyErasureNews(data); s.day=3; s.GenerateDailyErasureNews(data); s.ErasureReadDay=2;
                 s.schemaVersion=10; s.Story.JoinedLiberationFront=true; s.Thirst=50; s.HydrationHours=5; s.Vitals.AdjustMental(-23);
                 string oldId=s.ErasureHistory[1].locationId; uint oldNews=s.ErasureRandomState; clean(); File.WriteAllText(path,JsonUtility.ToJson(s));
-                check(saves.TryLoad(out restored,out _) && restored.schemaVersion==12 && restored.Diaries.Count==0 && restored.DailyFacts.Count==0 && restored.DiaryStartDay==3,"Legacy upgrade invented old diaries or reset tracking date.");
+                check(saves.TryLoad(out restored,out _) && restored.schemaVersion==13 && restored.Diaries.Count==0 && restored.DailyFacts.Count==0 && restored.DiaryStartDay==3,"Legacy upgrade invented old diaries or reset tracking date.");
                 check(restored.ErasureHistory.Count==2 && restored.ErasureHistory[1].locationId==oldId && restored.ErasureReadDay==2 && restored.ErasureRandomState==oldNews && restored.MorningIssues.Count==1,"Legacy news/read state/RNG was reset or duplicated.");
                 check(restored.Vitals.CurrentMental==77 && restored.Thirst==50 && restored.HydrationHours==5 && restored.Story.JoinedLiberationFront && restored.Companion==CompanionStep.None,"Legacy life upgrade reset vitals or reused membership for companions.");
                 s=fresh(); s.hour=23; s.Vitals.Hunger=100; s.Vitals.CurrentHP=1; s.AdvanceTime(12,data);

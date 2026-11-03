@@ -27,7 +27,7 @@ namespace VanishingDays
             var ids=new HashSet<string>();
             foreach(var recipe in recipes)
             {
-                if(recipe==null || string.IsNullOrWhiteSpace(recipe.id) || !ids.Add(recipe.id) || string.IsNullOrWhiteSpace(recipe.name) || string.IsNullOrWhiteSpace(recipe.description) || recipe.hours<1 || recipe.category!="weapons" && recipe.category!="living" || recipe.ingredients==null || !recipe.facility && (data.Item(recipe.result)==null || recipe.amount<1)) throw new InvalidOperationException("Invalid crafting recipe.");
+                if(recipe==null || string.IsNullOrWhiteSpace(recipe.id) || !ids.Add(recipe.id) || string.IsNullOrWhiteSpace(recipe.name) || string.IsNullOrWhiteSpace(recipe.description) || recipe.hours<0 || recipe.hours==0 && recipe.id!="collect_water" && recipe.id!="purify_water" || recipe.category!="weapons" && recipe.category!="living" || recipe.ingredients==null || !recipe.facility && (data.Item(recipe.result)==null || recipe.amount<1)) throw new InvalidOperationException("Invalid crafting recipe.");
                 foreach(var cost in recipe.ingredients) if(cost==null || data.Item(cost.id)==null || cost.amount<1 || recipe.ingredients.Count(x=>x.id==cost.id)!=1) throw new InvalidOperationException("Invalid crafting ingredients.");
                 if(recipe.ingredients.Length==0 && recipe.id!="collect_water" && recipe.id!="gather_water") throw new InvalidOperationException("Crafting requires materials.");
                 if(!string.IsNullOrEmpty(recipe.requiresFacility) && (Find(recipe.requiresFacility)==null || !Find(recipe.requiresFacility).facility || recipe.requiresFacility==recipe.id)) throw new InvalidOperationException("Invalid crafting facility requirement.");
@@ -44,17 +44,20 @@ namespace VanishingDays
         public bool CanCraft(string id,SurvivalDefinitions data)
         {
             var recipe=data.crafting.Find(id);
+            if(id=="collect_water") return CanCollectWater;
             return CanAct && CurrentLocation=="home" && recipe!=null && (id!="boil_water" || HomeStorage.Count("burner")>0) && (!recipe.facility || !HasFacility(id)) && (string.IsNullOrEmpty(recipe.requiresFacility) || HasFacility(recipe.requiresFacility)) && HomeStorage.Has(recipe.ingredients);
         }
         public string Craft(string id,SurvivalDefinitions data)
         {
+            if(id=="collect_water") return CollectWater();
             var recipe=data.crafting.Find(id);
             if(!CanCraft(id,data)) return "집에 보관한 재료와 필요한 설비를 확인하자. 장착한 재료 무기는 먼저 벗어 보관해야 한다.";
             HomeStorage.Spend(recipe.ingredients); RecordFact("story",recipe.name+" 작업을 시작했다.");
             AdvanceTime(recipe.hours,data);
             if(IsGameOver) return Report("제작 도중 쓰러졌다. 사용한 재료로 작업을 마치지 못했다.");
-            if(recipe.facility) InstalledFacilities.Add(id); else HomeStorage.Add(recipe.result,recipe.amount);
-            string text=recipe.facility?recipe.name+"를 집에 설치했다.":data.Item(recipe.result).name+" "+data.Quantity(recipe.result,recipe.amount)+"을 만들어 집에 보관했다.";
+            int amount=id=="purify_water"?PurifiedWaterAmount:recipe.amount;
+            if(recipe.facility) InstalledFacilities.Add(id); else HomeStorage.Add(recipe.result,amount);
+            string text=recipe.facility?recipe.name+"를 집에 설치했다.":data.Item(recipe.result).name+" "+data.Quantity(recipe.result,amount)+"을 만들어 집에 보관했다.";
             RecordFact("story",text); return Report(text);
         }
         public void UpgradeCrafting(SurvivalDefinitions data)

@@ -45,7 +45,7 @@ namespace VanishingDays.Editor
                 require(flow.Body==(panic?data.screens[4].yesLead:data.screens[4].noLead)+"\n\n"+data.screens[4].body,"Panic definition differs.");
                 for(int screen=5;screen<=11;screen++) { flow.Next(); require(flow.CurrentScreenId=="OPEN_"+screen.ToString("00"),"Archive transition failed."); }
                 flow.Next(); require(flow.CurrentScreenId=="OPEN_11","Nickname bypass was allowed.");
-                foreach(string invalid in new[]{"", "  \t\n", "한글 이름", "<b>이름</b>", "닉네임!", "ABCDEFGHIJKLM", "🙂"}) require(!flow.SubmitNickname(invalid),"Invalid nickname accepted.");
+                foreach(string invalid in new[]{"", "  \t\n", "ABCDEFGHIJKLM"}) require(!flow.SubmitNickname(invalid),"Invalid nickname accepted.");
                 require(flow.SubmitNickname("  기록자Ab12  "),"Valid Korean/English/digit nickname rejected.");
                 require(flow.PlayerNickname=="기록자Ab12" && flow.Author=="작성자 : 기록자Ab12","Nickname was not trimmed/bound.");
                 require(data.screens[6].author=="작성자 : 이석현","Original author was modified.");
@@ -53,6 +53,7 @@ namespace VanishingDays.Editor
                 flow.Next(); flow.Next(); flow.Answer(true); flow.SubmitNickname("다른이름");
                 require(calls==1 && flow.IsCompleted && received=="기록자Ab12","Completion callback must fire exactly once.");
             }
+            foreach(var name in new[]{"한글 이름","닉네임!","별★_#","🙂","<이름>"}) require(OpeningFlowController.IsNicknameValid(name),"Special character nickname rejected.");
             require(OpeningFlowController.IsNicknameValid("가"),"One-character nickname rejected.");
             require(OpeningFlowController.IsNicknameValid("가나다라마바사아자차카타"),"Twelve-character nickname rejected.");
             require(!OpeningFlowController.IsNicknameValid("가나다라마바사아자차카타파"),"Thirteen-character nickname accepted.");

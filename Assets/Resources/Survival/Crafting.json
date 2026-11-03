@@ -264,7 +264,7 @@
       ],
       "amount": 1,
       "facility": true,
-      "description": "혼탁한 물을 생수로 바꾸는 정수 작업을 해금한다."
+      "description": "간이 정수기 · 수율 50%. 혼탁한 물 4병을 생수 2병으로 즉시 정수한다. 상위 정수기로 업그레이드 가능."
     },
     {
       "id": "water_collector",
@@ -287,7 +287,7 @@
       ],
       "amount": 1,
       "facility": true,
-      "description": "시간을 들여 혼탁한 물을 모을 수 있다. 모은 물은 정수가 필요하다."
+      "description": "설치 후 2·5·10시간을 선택해 혼탁한 물 4·10·20병을 자동 집수한다. 외출·수면 중에도 진행하며 가득 차면 알림. 회수와 재설정은 0시간."
     },
     {
       "id": "bedroll",
@@ -316,28 +316,28 @@
       "id": "collect_water",
       "name": "집수통 물 회수",
       "category": "living",
-      "hours": 1,
+      "hours": 0,
       "ingredients": [],
-      "amount": 3,
+      "amount": 4,
       "result": "raw_water",
       "requiresFacility": "water_collector",
-      "description": "집수통에 모인 혼탁한 물 3병을 1시간 동안 회수한다. 생활용수 수집보다 효율적이며 정수가 필요하다."
+      "description": "가득 찬 집수통의 물을 모두 회수한다. 회수 0시간 · 식수 관리에서 집수 시간을 설정한다."
     },
     {
       "id": "purify_water",
       "name": "생수 정수",
       "category": "living",
-      "hours": 1,
+      "hours": 0,
       "ingredients": [
         {
           "id": "raw_water",
-          "amount": 3
+          "amount": 4
         }
       ],
-      "amount": 3,
+      "amount": 2,
       "result": "water",
       "requiresFacility": "water_filter",
-      "description": "혼탁한 물 3병을 1시간에 생수 3병으로 정수한다. 부르스타로 끓이는 것보다 효율적이다."
+      "description": "혼탁한 물 4병을 즉시 정수한다. 간이 2병 / 그럴듯한 3병 / 괜찮은 4병. 업그레이드로 손실을 줄인다."
     },
     {
       "id": "make_bandage",
@@ -357,6 +357,62 @@
       "amount": 1,
       "result": "bandage",
       "description": "치료에 사용할 붕대 1개를 만든다."
+    },
+    {
+      "id": "water_filter2",
+      "name": "그럴듯한 정수기",
+      "requiresFacility": "water_filter",
+      "category": "living",
+      "facility": true,
+      "amount": 1,
+      "hours": 3,
+      "ingredients": [
+        {
+          "id": "scrap",
+          "amount": 3
+        },
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        },
+        {
+          "id": "tape",
+          "amount": 1
+        }
+      ],
+      "description": "수율 75% · 혼탁한 물 4병 → 생수 3병. 간이 정수기를 업그레이드한다."
+    },
+    {
+      "id": "water_filter3",
+      "name": "괜찮은 정수기",
+      "requiresFacility": "water_filter2",
+      "category": "living",
+      "facility": true,
+      "amount": 1,
+      "hours": 4,
+      "ingredients": [
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "cloth",
+          "amount": 3
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        }
+      ],
+      "description": "수율 100% · 혼탁한 물 4병 → 생수 4병. 정수 손실 없이 집에서 식수를 자급한다."
     }
   ]
 }

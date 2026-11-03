@@ -41,6 +41,17 @@ namespace VanishingDays.Editor
                 check(saves.TryLoad(out old,out _) && old.OnboardingVersion==1 && !old.TutorialActive && old.NeedsNeighborIntroduction && old.Vitals.CurrentMental==87 && old.HomeStorage.Count("water")==6 && old.Locations.Find(x=>x.id=="store").remaining.Count("water")==3,"Old save upgrade reset progress or forced tutorial.");
                 old.NeighborIntroductionSeen=true;saves.Save(old);check(saves.TryLoad(out old,out _) && !old.NeedsNeighborIntroduction && old.NeighborStage==0,"Invitation dismissal lost or auto-played story.");
                 old.OnboardingVersion=0;old.NeighborStage=1;old.NeighborGreetings=1;old.NeighborLastDay=1;old.UpgradeOnboarding();check(!old.NeedsNeighborIntroduction,"Returning neighbor was introduced again.");
+                var automatic=SurvivalState.NewGame(GameDifficulty.NORMAL,data,123);
+                automatic.BeginTutorial();automatic.AdvanceTutorial();
+                check(!automatic.AdvanceCompletedTutorial() && automatic.TutorialStep==1,"Unfinished greeting was skipped.");
+                automatic.GreetNeighbor(data);
+                check(automatic.AdvanceCompletedTutorial() && automatic.TutorialStep==2,"Finished greeting required a manual next click.");
+                automatic.ViewTutorialTopic(3);automatic.ViewTutorialTopic(4);automatic.ViewTutorialTopic(2);
+                check(automatic.AdvanceCompletedTutorial() && automatic.TutorialStep==5,"Consecutive completed topics were not skipped.");
+                saves.Save(automatic);check(saves.TryLoad(out automatic,out _) && automatic.TutorialStep==5,"Automatic tutorial progress was not saved.");
+                automatic.ViewTutorialTopic(5);check(automatic.AdvanceCompletedTutorial() && !automatic.TutorialActive && automatic.TutorialStep==6,"Last topic did not complete automatically.");
+                automatic.BeginTutorial();automatic.AdvanceTutorial();
+                check(automatic.AdvanceCompletedTutorial() && !automatic.TutorialActive,"Replay forgot completed topics.");
                 foreach(int invalid in new[]{-1,7}) {old.TutorialStep=invalid;clean();File.WriteAllText(path,JsonUtility.ToJson(old));check(!saves.TryLoad(out _,out _),"Invalid tutorial step accepted.");}
             }
             finally{clean();}

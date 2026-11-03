@@ -19,7 +19,7 @@ namespace VanishingDays.Editor
                     var s=SurvivalState.NewGame(difficulty,data,123);s.HomeStorage.Remove("water",s.HomeStorage.Count("water"));
                     check(s.NeedsWaterWarning && s.CanCraft("gather_water",data),"Empty supply did not warn or allow gathering.");
                     for(int i=0;i<4;i++){s.Craft("gather_water",data);s.Craft("boil_water",data);}
-                    check(s.HomeStorage.Count("water")==6 && s.Vitals.CurrentHP==500 && s.HomeStorage.Count("raw_water")==0,"Renewable water failed to outpace consumption.");
+                    check(s.HomeStorage.Count("water")==8-12/s.WaterInterval(data) && s.Vitals.CurrentHP==500 && s.HomeStorage.Count("raw_water")==0,"Renewable water failed to outpace consumption.");
                     s.AdvanceTime(2,data);int water=s.HomeStorage.Count("water"),hour=s.hour;uint random=s.RandomState;
                     check(s.CanDrink,"Carried/home drinking unavailable.");s.DrinkWater();
                     check(s.Thirst==0 && s.HydrationHours==0 && s.hour==hour && s.RandomState==random && s.HomeStorage.Count("water")==water-1,"Manual drinking cost or reset wrong.");

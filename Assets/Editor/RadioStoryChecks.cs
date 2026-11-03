@@ -97,7 +97,7 @@ namespace VanishingDays.Editor
             }
             var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); legacy.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(legacy));
-            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=12 || migrated.Locations.Count!=8 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
+            if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=13 || migrated.Locations.Count!=8 || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
             migrated.ListenRadio(data); saves.Save(migrated); if(!saves.TryLoad(out migrated,out _) || !migrated.Story.SupplyRumorUnlocked) throw new Exception("Migrated radio unlock failed.");
             var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter"); preRadio.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(preRadio));

@@ -229,6 +229,34 @@
       "name": "보강 칼날",
       "unit": "개",
       "strength": 10
+    },
+    {
+      "id": "chocolate",
+      "name": "초콜릿",
+      "unit": "개",
+      "consumable": true,
+      "quickUse": true,
+      "hungerRelief": 25,
+      "healing": 3
+    },
+    {
+      "id": "soda",
+      "name": "탄산음료",
+      "unit": "캔",
+      "consumable": true,
+      "quickUse": true,
+      "hungerRelief": 10,
+      "thirstRelief": 40,
+      "healing": 0
+    },
+    {
+      "id": "energy_bar",
+      "name": "에너지바",
+      "unit": "개",
+      "consumable": true,
+      "quickUse": true,
+      "hungerRelief": 35,
+      "healing": 5
     }
   ],
   "locations": [
@@ -285,6 +313,18 @@
         },
         {
           "id": "raw_water",
+          "amount": 2
+        },
+        {
+          "id": "chocolate",
+          "amount": 4
+        },
+        {
+          "id": "soda",
+          "amount": 4
+        },
+        {
+          "id": "energy_bar",
           "amount": 2
         }
       ]
@@ -343,6 +383,18 @@
         {
           "id": "raw_water",
           "amount": 3
+        },
+        {
+          "id": "chocolate",
+          "amount": 2
+        },
+        {
+          "id": "soda",
+          "amount": 2
+        },
+        {
+          "id": "energy_bar",
+          "amount": 1
         }
       ],
       "requiresLocation": "store",
@@ -394,6 +446,18 @@
         {
           "id": "raw_water",
           "amount": 4
+        },
+        {
+          "id": "chocolate",
+          "amount": 3
+        },
+        {
+          "id": "soda",
+          "amount": 4
+        },
+        {
+          "id": "energy_bar",
+          "amount": 3
         }
       ],
       "requiresLocation": "empty_house",
@@ -451,6 +515,18 @@
         {
           "id": "tape",
           "amount": 3
+        },
+        {
+          "id": "chocolate",
+          "amount": 1
+        },
+        {
+          "id": "soda",
+          "amount": 2
+        },
+        {
+          "id": "energy_bar",
+          "amount": 1
         }
       ]
     },
@@ -498,6 +574,18 @@
         {
           "id": "tape",
           "amount": 5
+        },
+        {
+          "id": "chocolate",
+          "amount": 1
+        },
+        {
+          "id": "soda",
+          "amount": 2
+        },
+        {
+          "id": "energy_bar",
+          "amount": 2
         }
       ]
     },
@@ -553,6 +641,18 @@
         {
           "id": "raw_water",
           "amount": 5
+        },
+        {
+          "id": "chocolate",
+          "amount": 4
+        },
+        {
+          "id": "soda",
+          "amount": 4
+        },
+        {
+          "id": "energy_bar",
+          "amount": 4
         }
       ]
     }
@@ -755,5 +855,28 @@
     "secondCompleted": "동림이 알려준 철물점 뒷창고를 지도에 표시했다. 내일 낮부터는 고등학교 게시판 앞에서 그를 만날 수 있다.",
     "thirdCompleted": "주민회관 지하로 가는 길을 기록했다. 동림은 이틀 간격으로 빈집 골목과 고등학교를 번갈아 순찰하겠다고 했다. 각자 거처에서 지내며 다시 만나기로 했다. 다음 날 이후 낮에는 학교에서 짧은 동행 탐사를 의논할 수 있다.",
     "patrolCompleted": "순찰에서 확인한 내용을 기록했다. 동림과 다음 만남을 약속하고 각자의 길로 돌아섰다."
-  }
+  },
+  "difficultyRates": [
+    {
+      "difficulty": 0,
+      "hungerPercent": 25,
+      "thirstPerHour": 0,
+      "sleepinessPerHour": 2,
+      "waterIntervalHours": 12
+    },
+    {
+      "difficulty": 1,
+      "hungerPercent": 50,
+      "thirstPerHour": 5,
+      "sleepinessPerHour": 3,
+      "waterIntervalHours": 10
+    },
+    {
+      "difficulty": 2,
+      "hungerPercent": 75,
+      "thirstPerHour": 8,
+      "sleepinessPerHour": 4,
+      "waterIntervalHours": 8
+    }
+  ]
 }

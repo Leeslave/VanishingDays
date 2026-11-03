@@ -8,6 +8,15 @@ namespace VanishingDays
 {
     public sealed class OpeningScreenView : MonoBehaviour
     {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern void VD_OpenNickname(string target);
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern void VD_CloseNickname();
+#endif
+        bool browserComposing;
+        public void BrowserNicknameComposition(string value) { browserComposing=value=="1"; if(submit!=null) submit.interactable=!browserComposing && OpeningFlowController.IsNicknameValid(nickname.text); }
+        public void BrowserNicknameChanged(string value) { if(nickname!=null) nickname.text=value; }
+        public void BrowserNicknameSubmit(string value) { BrowserNicknameChanged(value); SubmitNickname(); }
+        void OnDisable() { ReleaseNickname(); }
         static readonly Color Background=new Color32(11,17,19,255), Paper=new Color32(230,223,204,255), Muted=new Color32(155,163,157,255), Accent=new Color32(217,166,94,255),
             Card=new Color32(18,26,28,255), Edge=new Color32(38,50,49,255), Selected=new Color32(43,38,28,255), AccentText=new Color32(233,190,126,255), OnAccent=new Color32(20,17,11,255);
         RectTransform root;
@@ -126,7 +135,8 @@ namespace VanishingDays
                     Text(rows[i],112,62+i*76,664,60,26,i==2 && SelectedDifficulty==GameDifficulty.HARD?new Color32(231,160,138,255):Paper,loadout).alignment=TextAnchor.MiddleLeft;
                 }
                 Button(screen.button,48,804,flow.Next,1404,112);
-                Text("행동 후 자동 저장",0,1538,900,34,21,Muted).alignment=TextAnchor.UpperCenter;
+                int rateIndex=(int)SelectedDifficulty;
+                Text("시간당 허기 +"+new[]{1,2,3}[rateIndex]+" · 목마름 +"+new[]{0,5,8}[rateIndex]+" · 졸림 +"+new[]{2,3,4}[rateIndex],0,1538,900,34,21,Muted).alignment=TextAnchor.UpperCenter;
                 return;
             }
             Text("VANISHING DAYS  /  ARCHIVE",64,70,772,38,20,Muted);
@@ -146,32 +156,47 @@ namespace VanishingDays
         {
             Text(flow.Body,64,490,772,92,32,Paper);
             var field=Panel("Nickname input",64,668,772,108,new Color32(31,41,43,255));
-            nickname=field.gameObject.AddComponent<InputField>(); nickname.targetGraphic=field.GetComponent<Image>();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            nickname=field.gameObject.AddComponent<InputField>();
+#else
+            nickname=field.gameObject.AddComponent<NicknameInputField>();
+#endif
+            nickname.targetGraphic=field.GetComponent<Image>();
             nickname.contentType=InputField.ContentType.Standard; nickname.lineType=InputField.LineType.SingleLine; nickname.characterValidation=InputField.CharacterValidation.None;
             // Validate the committed name, rather than rejecting jamo while the IME composes.
             nickname.characterLimit=0;
             var text=Text("",24,24,724,64,34,Paper,field); text.supportRichText=false;
             var placeholder=Text("닉네임 입력",24,24,724,64,34,Muted,field);
             nickname.textComponent=text; nickname.placeholder=placeholder; nickname.caretColor=Accent; nickname.customCaretColor=true;
-            Text("한글 · 영문 · 숫자 1~12자",64,806,772,64,24,Muted);
+            Text("한글 · 영문 · 숫자 · 특수문자 1~12자",64,806,772,64,24,Muted);
             submit=Button("기록 시작",64,772,SubmitNickname); submit.interactable=false;
             nickname.onValueChanged.AddListener(value=>submit.interactable=OpeningFlowController.IsNicknameValid(value));
             nickname.onEndEdit.AddListener(value=>MobileInputViewport.Restore());
+            #if UNITY_WEBGL && !UNITY_EDITOR
+            // Unity 6.3 player scripts do not reference WebGLInput; the HTML input stops key events reaching Unity instead.
+            VD_OpenNickname(gameObject.name);
+#else
             StartCoroutine(FocusNickname());
+#endif
         }
         void SubmitNickname()
         {
-            if(nickname==null) return;
+            if(nickname==null || browserComposing) return;
             var value=nickname.text;
             // InputField commits composition on focus loss; do not advance on uncommitted text.
             var input=EventSystem.current?.currentInputModule?.input;
+            #if !UNITY_WEBGL || UNITY_EDITOR
             if(input!=null && input.compositionString.Length>0) return;
+#endif
             if(!OpeningFlowController.IsNicknameValid(value)) return;
             ReleaseNickname();
             flow.SubmitNickname(value);
         }
         void ReleaseNickname()
         {
+            #if UNITY_WEBGL && !UNITY_EDITOR
+            VD_CloseNickname();
+#endif
             if(nickname==null) return;
             nickname.DeactivateInputField();
             if(EventSystem.current!=null && EventSystem.current.currentSelectedGameObject==nickname.gameObject)

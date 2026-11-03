@@ -9,7 +9,7 @@ namespace VanishingDays.Editor
     public static class PrototypeBuilder
     {
         [MenuItem("Vanishing Days/Validate game rules")]
-        public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); WorldProgressionChecks.Validate(); VitalsChecks.Validate(); ErasureNewsChecks.Validate(); StorageChecks.Validate(); SleepTradeChecks.Validate(); WaterChecks.Validate(); DailyLifeChecks.Validate(); CraftingChecks.Validate(); WaterAccessChecks.Validate(); OnboardingChecks.Validate(); }
+        public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); WorldProgressionChecks.Validate(); VitalsChecks.Validate(); ErasureNewsChecks.Validate(); StorageChecks.Validate(); SleepTradeChecks.Validate(); WaterChecks.Validate(); DailyLifeChecks.Validate(); CraftingChecks.Validate(); WaterAccessChecks.Validate(); OnboardingChecks.Validate(); SurvivalBalanceChecks.Validate(); }
 
         [MenuItem("Vanishing Days/Build Windows prototype")]
         public static void Build() { Build(false); }
@@ -20,6 +20,7 @@ namespace VanishingDays.Editor
         [MenuItem("Vanishing Days/Build Web prototype")]
         public static void BuildWeb()
         {
+            WebPersistenceBuildProcessor.Validate();
             ValidateKoreanFont(); Validate(); OpeningFlowChecks.Validate();
             // Static hosting may not honor Content-Encoding rules. Unity's loader
             // must be able to decode its own files without special server headers.

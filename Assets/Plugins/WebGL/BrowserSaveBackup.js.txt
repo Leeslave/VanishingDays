@@ -1,0 +1,67 @@
+// Runs after Unity's initial IndexedDB restore, before the game starts.
+// Keep a synchronous recovery copy: an IndexedDB transaction may still be
+// pending when the player reloads/closes the page, or IndexedDB may be blocked.
+(function installVanishingDaysSaveBackup(FS) {
+  if (FS.vdSaveBackupInstalled) return;
+  FS.vdSaveBackupInstalled = true;
+  var key = 'vanishing-days.browser-save.v1';
+  var filename = '/vanishing-days-v03.json';
+  var storage;
+  var warned = false;
+  function warn(error) {
+    if (warned) return;
+    warned = true;
+    console.warn('Vanishing Days: browser recovery copy unavailable; IndexedDB saving remains enabled.', error && error.name);
+  }
+  function validPath(path) {
+    return typeof path === 'string' && /^\/idbfs\/[a-zA-Z0-9_-]+\/vanishing-days-v03\.json$/.test(path);
+  }
+  function validJson(json) {
+    if (typeof json !== 'string') return false;
+    try { var state = JSON.parse(json); return state && typeof state === 'object' && state.schemaVersion > 0 && state.day > 0; }
+    catch (_) { return false; }
+  }
+  function read(path) {
+    try { return FS.readFile(path, {encoding: 'utf8'}); }
+    catch (_) { return null; }
+  }
+  function modified(path) {
+    try { return +FS.stat(path).mtime; }
+    catch (_) { return 0; }
+  }
+  function snapshot(path) {
+    if (!validPath(path) || !storage) return;
+    var json = read(path);
+    if (!validJson(json)) return;
+    try {
+      storage.setItem(key, JSON.stringify({version: 1, path: path, json: json,
+        backup: read(path + '.bak'), modified: modified(path)}));
+    } catch (error) { warn(error); }
+  }
+  try { storage = window.localStorage; }
+  catch (error) { warn(error); }
+  if (storage) {
+    try {
+      var saved = JSON.parse(storage.getItem(key) || 'null');
+      if (saved && saved.version === 1 && validPath(saved.path) && validJson(saved.json)
+          && Number.isFinite(saved.modified) && saved.modified >= 0) {
+        var current = read(saved.path);
+        // A newer successfully persisted save always wins. Native save
+        // validation and .bak recovery still run when the game loads it.
+        if (!validJson(current) || current !== saved.json && modified(saved.path) <= saved.modified) {
+          FS.mkdirTree(saved.path.slice(0, -filename.length));
+          FS.writeFile(saved.path, saved.json);
+          if (validJson(saved.backup)) FS.writeFile(saved.path + '.bak', saved.backup);
+        }
+      }
+    } catch (error) { warn(error); }
+  }
+  var rename = FS.rename;
+  FS.rename = function (oldPath, newPath) {
+    var result = rename.apply(this, arguments);
+    // File.Move/File.Replace commit the .tmp file by renaming it. Snapshot
+    // only this final step, so an incomplete or failed write is never saved.
+    if (typeof newPath === 'string' && newPath.endsWith(filename)) snapshot(newPath);
+    return result;
+  };
+})(FS);

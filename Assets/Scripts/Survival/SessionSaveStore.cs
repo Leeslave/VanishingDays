@@ -1,11 +1,16 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace VanishingDays
 {
     public sealed class SessionSaveStore
     {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")]
+        static extern void JS_FileSystem_Sync();
+#endif
         public string Path { get; }
         readonly SurvivalDefinitions definitions;
         public bool Exists => File.Exists(Path) || File.Exists(Path+".bak");
@@ -17,6 +22,11 @@ namespace VanishingDays
             string temp=Path+".tmp";
             File.WriteAllText(temp,JsonUtility.ToJson(state,true));
             if(File.Exists(Path)) File.Replace(temp,Path,Path+".bak"); else File.Move(temp,Path);
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // File writes only update the in-memory filesystem. Queue persistence
+            // after the final rename, including builds using Unity's default template.
+            JS_FileSystem_Sync();
+#endif
         }
         public bool TryLoad(out SurvivalState state,out string error)
         {
@@ -41,6 +51,7 @@ namespace VanishingDays
                     if(restored?.schemaVersion==9) { restored.Thirst=restored.UnlimitedWater?0:Math.Max(0,Math.Min(100,restored.HydrationHours*10)); restored.schemaVersion=10; }
                     if(restored?.schemaVersion==10) { restored.UpgradeDailyLife(definitions); restored.schemaVersion=11; }
                     if(restored?.schemaVersion==11) { restored.UpgradeCrafting(definitions); restored.schemaVersion=12; }
+                    if(restored?.schemaVersion==12) { restored.UpgradeSurvivalBalance(definitions); restored.schemaVersion=13; }
                     restored?.UpgradeOnboarding();
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
@@ -54,10 +65,10 @@ namespace VanishingDays
         }
         public static void Validate(SurvivalState s,SurvivalDefinitions data,bool allowLegacyOverCap=false)
         {
-            if(s==null || s.schemaVersion!=12 || s.day<1 || s.day>365000 || s.hour<0 || s.hour>=24 || data.Location(s.CurrentLocation)==null || !Enum.IsDefined(typeof(GameDifficulty),s.Difficulty)) throw new InvalidDataException("Invalid session header.");
+            if(s==null || s.schemaVersion!=13 || s.day<1 || s.day>365000 || s.hour<0 || s.hour>=24 || data.Location(s.CurrentLocation)==null || !Enum.IsDefined(typeof(GameDifficulty),s.Difficulty)) throw new InvalidDataException("Invalid session header.");
             if(s.Vitals==null || s.Vitals.BaseMaxHP<=0 || s.Vitals.CurrentHP<0 || s.Vitals.CurrentHP>s.Vitals.BaseMaxHP || s.Vitals.Hunger<0 || s.Vitals.Hunger>100 || s.Vitals.Injuries==null || s.Story==null || s.Locations==null || s.Locations.Count!=data.locations.Length || s.journal==null || s.Equipment==null || s.InstalledSecurity==null || s.RandomState==0) throw new InvalidDataException("Invalid session state.");
             if(s.InjuryRestProgress<0 || s.InjuryRestProgress>=data.TEMP_BALANCE.injuryRestHours || s.MedicalLootVersion<0 || s.MedicalLootVersion>1) throw new InvalidDataException("Invalid recovery progress.");
-            if(s.HydrationHours<0 || s.HydrationHours>=data.TEMP_BALANCE.waterIntervalHours || s.UnlimitedWater && s.HydrationHours!=0) throw new InvalidDataException("Invalid water progress.");
+            if(s.HydrationHours<0 || s.HydrationHours>=s.WaterInterval(data) || s.UnlimitedWater && s.HydrationHours!=0) throw new InvalidDataException("Invalid water progress.");
             if(s.Thirst<0 || s.Thirst>100 || s.UnlimitedWater && s.Thirst!=0) throw new InvalidDataException("Invalid thirst.");
             if(s.OnboardingVersion!=1 || s.TutorialStep<0 || s.TutorialStep>6 || s.TutorialViewed<0 || (s.TutorialViewed&~60)!=0 || s.TutorialActive && s.TutorialStep==6) throw new InvalidDataException("Invalid onboarding progress.");
             ValidateInventory(s.Backpack,data); ValidateInventory(s.HomeStorage,data);
@@ -70,6 +81,7 @@ namespace VanishingDays
             foreach(var id in s.Equipment) if(data.Item(id)==null || (data.Item(id).strength==0 && data.Item(id).defense==0) || s.Equipment.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid equipment.");
             if(s.Equipment.FindAll(x=>data.Item(x).strength>0).Count>1 || s.Equipment.FindAll(x=>data.Item(x).strength==0 && data.Item(x).defense>0).Count>1) throw new InvalidDataException("Multiple items in one equipment slot.");
             if(s.InstalledFacilities==null) throw new InvalidDataException("Missing crafting facilities.");
+            if(s.CollectorCycleHours!=0 && s.CollectorCycleHours!=2 && s.CollectorCycleHours!=5 && s.CollectorCycleHours!=10 || s.CollectorElapsedHours<0 || s.CollectorElapsedHours>s.CollectorCycleHours || s.CollectorCycleHours>0 && !s.HasFacility("water_collector") || s.CollectorNoticePending && !s.CollectorReady) throw new InvalidDataException("Invalid water collector.");
             foreach(var id in s.InstalledFacilities) if(data.crafting.Find(id)==null || !data.crafting.Find(id).facility || s.InstalledFacilities.FindAll(x=>x==id).Count!=1 || !string.IsNullOrEmpty(data.crafting.Find(id).requiresFacility) && !s.HasFacility(data.crafting.Find(id).requiresFacility)) throw new InvalidDataException("Invalid crafting facility.");
             foreach(var id in s.InstalledSecurity) if(data.Security(id)==null || s.InstalledSecurity.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid security.");
             foreach(var injury in s.Vitals.Injuries) if(injury==null || float.IsNaN(injury.recoveryPenalty) || injury.recoveryPenalty<0 || injury.recoveryPenalty>1) throw new InvalidDataException("Invalid injury.");

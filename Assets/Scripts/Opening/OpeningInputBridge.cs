@@ -7,13 +7,21 @@ using UnityEngine.UI;
 namespace VanishingDays
 {
     // uGUI InputField requests IME through BaseInput. Adapt it to the existing Input System
-    // without enabling the legacy input backend or interrupting Korean composition.
+    // while NicknameInputField receives committed characters from onTextInput.
     public sealed class OpeningInputBridge : BaseInput
     {
         Keyboard keyboard;
         string composition="";
         IMECompositionMode mode;
         Vector2 cursor;
+        bool inserting;
+        public int CompositionFrame { get; private set; }=-1;
+        public void InsertCommitted(char character,System.Action insert)
+        {
+            if(composition==character.ToString())composition="";
+            inserting=true;
+            try { insert(); } finally { inserting=false; }
+        }
         protected override void OnEnable() { base.OnEnable(); BindKeyboard(); InputSystem.onDeviceChange+=DeviceChanged; }
         protected override void OnDisable()
         {
@@ -31,10 +39,17 @@ namespace VanishingDays
         }
         void CompositionChanged(IMECompositionString value)
         {
+            CompositionFrame=Time.frameCount;
             composition=value.ToString();
-            EventSystem.current?.currentSelectedGameObject?.GetComponent<InputField>()?.ForceLabelUpdate();
+            var events=EventSystem.current;
+            var selected=events!=null?events.currentSelectedGameObject:null;
+            if(selected!=null)
+            {
+                var field=selected.GetComponent<InputField>();
+                if(field!=null)field.ForceLabelUpdate();
+            }
         }
-        public override string compositionString => composition;
+        public override string compositionString => inserting?"":composition;
         public override IMECompositionMode imeCompositionMode
         {
             get => mode;

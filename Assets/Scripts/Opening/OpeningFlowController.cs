@@ -52,7 +52,7 @@ namespace VanishingDays
         public static bool IsNicknameValid(string input)
         {
             string name=(input??"").Trim();
-            return name.Length>=1 && name.Length<=12 && Regex.IsMatch(name,@"\A[가-힣ᄀ-ᇿㄱ-ㆎA-Za-z0-9]+\z");
+            return name.Length>=1 && name.Length<=12 && !Regex.IsMatch(name,@"[\p{Cc}\p{Cf}]");
         }
         public bool SubmitNickname(string input)
         {

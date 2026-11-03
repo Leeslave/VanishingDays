@@ -5,6 +5,8 @@ namespace VanishingDays
     public partial class SurvivalState
     {
         public int HydrationHours, Thirst;
+        public int HungerPerHour(SurvivalDefinitions data) => data.TEMP_BALANCE.hungerPerHour*data.Rates(Difficulty).hungerPercent/100;
+        public int WaterInterval(SurvivalDefinitions data) => data.Rates(Difficulty).waterIntervalHours;
         public bool UnlimitedWater => Difficulty==GameDifficulty.EASY;
         public int AccessibleWater => Backpack.Count("water")+(CurrentLocation=="home"?HomeStorage.Count("water"):0);
         public bool NeedsWaterWarning => !UnlimitedWater && (Thirst>=60 || AccessibleWater==0);
@@ -16,16 +18,16 @@ namespace VanishingDays
             var source=CurrentLocation=="home" && HomeStorage.Count("water")>0?HomeStorage:Backpack;
             source.Remove("water",1); Thirst=0; HydrationHours=0;
             RecordFact("story","생수 1병을 마셔 목마름을 해소했다.");
-            return Report("생수 1병(500ml)을 마셨다. 목마름 0 / 100 · 다음 식수까지 6시간.");
+            return Report("생수 1병(500ml)을 마셨다. 목마름 0 / 100 · 식수 주기를 새로 시작한다.");
         }
         public ItemStack[] CookingIngredients(RecipeDefinition recipe) => UnlimitedWater?Array.FindAll(recipe.ingredients,x=>x.id!="water"):recipe.ingredients;
         public bool CanCook(RecipeDefinition recipe,SurvivalDefinitions data) => CanAct && CurrentLocation=="home" && recipe!=null && HomeStorage.Count("burner")>0 && HomeStorage.Has(CookingIngredients(recipe));
         void TickWater(SurvivalDefinitions data)
         {
             if(IsGameOver || UnlimitedWater) return;
-            Thirst=Math.Min(100,Thirst+10);
+            Thirst=Math.Min(100,Thirst+data.Rates(Difficulty).thirstPerHour);
             HydrationHours++;
-            if(HydrationHours<data.TEMP_BALANCE.waterIntervalHours) return;
+            if(HydrationHours<WaterInterval(data)) return;
             HydrationHours=0;
             var source=CurrentLocation=="home" && HomeStorage.Count("water")>0?HomeStorage:Backpack;
             if(source.Remove("water",1)) { Thirst=0; Note("[식수] 생수 1병(500ml)을 마셨다. 목마름 0 / 100."); }
@@ -34,8 +36,8 @@ namespace VanishingDays
         public string WaterStatus(SurvivalDefinitions data)
         {
             if(UnlimitedWater) return "식수 무제한 · 쉬움 · 가스는 충분하다.";
-            if(Backpack.Count("water")+(CurrentLocation=="home"?HomeStorage.Count("water"):0)==0) return "마실 물 없음 · "+(data.TEMP_BALANCE.waterIntervalHours-HydrationHours)+"시간 후 체력 -"+data.TEMP_BALANCE.dehydrationDamage+(CurrentLocation=="home"?"":" · 집의 물은 귀가 후 사용");
-            return "물 · 소지 "+Backpack.Count("water")+"병"+(CurrentLocation=="home"?" / 집 "+HomeStorage.Count("water")+"병":" · 집의 물은 귀가 후 사용")+" · "+(data.TEMP_BALANCE.waterIntervalHours-HydrationHours)+"시간 후 1병 필요";
+            if(AccessibleWater==0) return "마실 물 없음 · "+(WaterInterval(data)-HydrationHours)+"시간 후 체력 -"+data.TEMP_BALANCE.dehydrationDamage+(CurrentLocation=="home"?"":" · 집의 물은 귀가 후 사용");
+            return "물 · 소지 "+Backpack.Count("water")+"병"+(CurrentLocation=="home"?" / 집 "+HomeStorage.Count("water")+"병":" · 집의 물은 귀가 후 사용")+" · "+(WaterInterval(data)-HydrationHours)+"시간 후 1병 필요";
         }
         public void UpgradeWaterSupply(SurvivalDefinitions data)
         {
