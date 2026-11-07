@@ -69,7 +69,7 @@ namespace VanishingDays
         public bool IsGameOver => Vitals.CurrentHP<=0;
         public DateTime CalendarDate => new DateTime(2031,2,26).AddDays(day-1);
         public bool IsNight(SurvivalBalance balance) => hour<balance.dayStarts || hour>=balance.nightStarts;
-        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion && !LateScenePending && !HasEnded;
+        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion && !LateScenePending && !BrokenPathScenePending && !HasEnded;
         public bool CanUseRadio => Story.HasRadio && (Backpack.Count("radio")>0 || (CurrentLocation=="home" && HomeStorage.Count("radio")>0));
         public static SurvivalState NewGame(GameDifficulty difficulty,SurvivalDefinitions definitions,uint seed=0)
         {
@@ -125,7 +125,7 @@ namespace VanishingDays
             for(int i=0;i<hours && !IsGameOver;i++)
             {
                 if(resting) RecordFact("sleep",CurrentLocation=="home"?"집에서 {hours}시간 잠을 잤다.":"현재 머무는 곳에서 {hours}시간 쉬었다.");
-                hour++; if(hour>=24) { hour=0; day++; FinalizeDiary(day-1,data); }
+                hour++; if(hour>=24) { hour=0; day++; FinalizeDiary(day-1,data); TickBrokenPathDay(data); }
                 if(hour==8) PrepareMorning(data);
                 TickSleep(resting,data);
                 TickWaterCollector();
@@ -298,6 +298,7 @@ namespace VanishingDays
             if(!CanAct || CurrentLocation!="home" || data.Item(itemId)==null || itemId=="burner") return "집에서 물품을 정리할 수 있다.";
             var source=toBackpack?HomeStorage:Backpack; var target=toBackpack?Backpack:HomeStorage;
             if(count<=0) return "옮길 수량을 1 이상 입력하자.";
+            if(toBackpack && IsLargeMaterial(itemId) && CarriedLarge+count>CarryCapacity) return "큰 자재는 한 번에 "+CarryCapacity+"개까지 들 수 있다.";
             if(!source.Transfer(target,itemId,count)) return "옮길 물품의 수량이 부족하다.";
             return Report(data.Item(itemId).name+" "+data.Quantity(itemId,count)+(toBackpack?"을 몸에 챙겼다.":"을 집에 보관했다."));
         }

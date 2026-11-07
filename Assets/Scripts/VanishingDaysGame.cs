@@ -74,6 +74,8 @@ namespace VanishingDays
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdTutorial")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/TutorialVerification/session.json"),definitions); StartCoroutine(SmokeTutorial()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSupply")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/WaterAccessVerification/session.json"),definitions); StartCoroutine(SmokeWaterAccess()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdCraft")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/CraftingVerification/session.json"),definitions); StartCoroutine(SmokeCrafting()); return; }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdAct3")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/Act3Verification/session.json"),definitions); StartCoroutine(SmokeAct3()); return; }
+            if(startAtAct3InEditor && Application.isEditor) { BeginAct3Test(); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdDialogue")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DialogueVerification/session.json"),definitions); StartCoroutine(SmokeDialogue()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdLife")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DailyLifeVerification/session.json"),definitions); StartCoroutine(SmokeDailyLife()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdThirst")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/ThirstVerification/session.json"),definitions); StartCoroutine(SmokeThirst()); return; }
@@ -247,6 +249,7 @@ namespace VanishingDays
                 if(state.NextDiary!=null) { DiaryPage(true); return; }
                 if(state.HasPendingMorning) { selectedMorningDay=0; MorningPage(); return; }
             }
+            if(state.BrokenPathScenePending) { BrokenPathScenePage(); return; }
             // A story scene starts once the player is at its place on a safe screen, after the day's records.
             if(state.TryBeginLateStory(definitions)) Save();
             if(state.LateScenePending) { LateStoryPage(); return; }
@@ -273,6 +276,7 @@ namespace VanishingDays
                 case "diaries": DiaryPage(false); break;
                 case "morning": MorningPage(); break;
                 case "neighbor": NeighborPage(); break;
+                case "bridge-plan": BrokenPathPlanPage(); break;
                 case "companion": CompanionPage(); break;
                 case "security": Security(); break;
                 case "journal": Journal(); break;
@@ -397,7 +401,7 @@ namespace VanishingDays
                 Button("정보 카드 · 방송 전문 다시 읽기",48,930,804,60,()=>{page="radio";Render();});
             }
             // Without a fresh result the page describes home rather than replaying an old, unrelated report.
-            else Paragraph(string.IsNullOrEmpty(message)?definitions.Location("home").description+(state.CurrentBeat(definitions)!=null?"\n\n"+state.LateHint(definitions):""):message,776,214,25,true);
+            else Paragraph(string.IsNullOrEmpty(message)?definitions.Location("home").description+(state.CurrentBeat(definitions)!=null && !state.BrokenPathActive?"\n\n"+state.LateHint(definitions):"")+(state.BrokenPathFieldWork?"\n\n"+definitions.brokenPath.hint:""):message,776,214,25,true);
             // Sleep and the outing already live in the dock; the list offers what the dock does not.
             Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
             Choice(1,"외출 준비 · 물품을 챙긴다","물·식량·약품을 가방에 넣는다 · 시간 소모 없음",1122,()=>{page="inventory";message="";Render();});
@@ -416,7 +420,7 @@ namespace VanishingDays
         void Explore()
         {
             var location=definitions.Location(state.CurrentLocation);
-            if(location.storyOnly) { if(location.id=="supply_site") SupplySitePage(); else StoryPlacePage(location); return; }
+            if(location.storyOnly) { if(location.id=="supply_site") SupplySitePage(); else if(location.id=="seongnae_bridge") BrokenPathBridgePage(location); else if(location.id=="construction_site") ConstructionSitePage(location); else StoryPlacePage(location); return; }
             Hero(location.name,state.LootSummary(location.id,definitions),true);
             Paragraph(string.IsNullOrEmpty(message)?location.description:message,776,214,25,true);
             Choice(0,"주변을 수색한다",state.HasSearchWork(location.id,definitions)?location.searchHours+"시간 · 수색 후 귀가 "+state.HomeArrivalAfterSearch(definitions).ToString("MM.dd HH:mm")+(string.IsNullOrEmpty(state.SearchNightWarning(definitions))?"":" · 야간 주의"):"물자 소진 · 지도에서 다음 목적지를 확인",1010,RequestSearch,state.HasSearchWork(location.id,definitions));
@@ -958,6 +962,9 @@ namespace VanishingDays
             Button("메뉴 닫기 · 생존 계속",48,1030,804,84,()=>{page="home";Render();},true,true);
             Button("새 기록 시작 · 현재 기록을 덮어쓴다",48,1130,804,84,()=>{confirmRestart=true;Render();});
             if(state.Story.HasRadio) Button("라디오 켜기",48,1250,804,84,OpenRadio,state.CanUseRadio);
+#if UNITY_EDITOR || VD_UI_VERIFICATION
+            Button("개발용 · 3막 「끊어진 길」 테스트 진입",48,1346,804,54,BeginAct3Test);
+#endif
         }
         void RestartPage()
         {

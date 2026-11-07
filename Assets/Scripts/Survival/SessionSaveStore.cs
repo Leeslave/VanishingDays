@@ -54,6 +54,7 @@ namespace VanishingDays
                     if(restored?.schemaVersion==12) { restored.UpgradeSurvivalBalance(definitions); restored.schemaVersion=13; }
                     restored?.UpgradeOnboarding();
                     restored?.UpgradeLateStory(definitions);
+                    restored?.UpgradeBrokenPath(definitions);
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
                     Validate(restored,definitions,legacyVitals);
@@ -98,6 +99,7 @@ namespace VanishingDays
             ValidateErasureNews(s,data);
             ValidateDailyLife(s);
             ValidateLateStory(s,data);
+            ValidateBrokenPath(s,data);
         }
         static void ValidateLateStory(SurvivalState s,SurvivalDefinitions data)
         {
@@ -108,6 +110,19 @@ namespace VanishingDays
             foreach(var flag in s.LateFlags) if(string.IsNullOrWhiteSpace(flag) || s.LateFlags.FindAll(x=>x==flag).Count!=1) throw new InvalidDataException("Invalid late story flag.");
             var beat=s.CurrentBeat(data);
             if(s.LateScenePending && (beat==null || s.CurrentLocation!=beat.location || s.PendingEncounter!=null || s.PendingDongrimMeeting || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid late story scene.");
+        }
+        static void ValidateBrokenPath(SurvivalState s,SurvivalDefinitions data)
+        {
+            var p=s.BrokenPath; var d=data.brokenPath;
+            if(p==null || p.Surveyed==null || p.Site==null || p.Yard==null || p.Scene==null || p.CoreChoice==null || p.Method==null || p.Outcome==null || p.YeongsukState==null) throw new InvalidDataException("Missing broken path progress.");
+            if(p.Stage<0 || p.Stage>4 || p.Helpers<0 || p.Helpers>2 || p.NamelessLost<0 || p.NamelessLost>d.maxNamelessLost || p.RescueDelayDays<0 || p.Readiness<-1 || p.Readiness>5 || p.Remaining<0 || p.FirstGroup<0 || p.Survivors<0 || p.Extra<0 || p.RescuedCount<0 || p.LostCount<0 || p.StartTime<0 || p.StartTime>s.Clock) throw new InvalidDataException("Invalid broken path numbers.");
+            if(p.Scene!="" && d.Scene(p.Scene)==null || p.CoreChoice!="" && p.CoreChoice!="A" && p.CoreChoice!="B" || p.Method!="" && d.Method(p.Method)==null) throw new InvalidDataException("Invalid broken path ids.");
+            if(p.Outcome!="" && p.Outcome!="A1" && p.Outcome!="A2" && p.Outcome!="B_Light" && p.Outcome!="B_Heavy" || p.YeongsukState!="" && p.YeongsukState!="Rescued" && p.YeongsukState!="Missing") throw new InvalidDataException("Invalid broken path outcome.");
+            foreach(var id in p.Surveyed) if(d.Survey(id)==null || p.Surveyed.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid broken path survey.");
+            ValidateInventory(p.Site,data); ValidateInventory(p.Yard,data);
+            foreach(var stack in p.Site.stacks) if(stack.amount>0 && !SurvivalState.IsLargeMaterial(stack.id)) throw new InvalidDataException("Only large materials are stacked at the bridge.");
+            if(p.Stage>0 && !s.LateStoryStarted || p.Stage==0 && (p.Scene!="" || p.CoreChoice!="") || p.Stage>=2 && p.CoreChoice=="" || p.Stage==2 && (p.Built || p.Scene!="") || p.Stage>=3 && (!p.Built || p.Method=="") || p.Stage==4 && (p.Scene!="" || p.Outcome=="")) throw new InvalidDataException("Invalid broken path stage.");
+            if(s.BrokenPathScenePending && (s.PendingEncounter!=null || s.LateScenePending || s.PendingDongrimMeeting || s.HasActiveCrowdIncident)) throw new InvalidDataException("Overlapping story scenes.");
         }
         static void ValidateDailyLife(SurvivalState s)
         {

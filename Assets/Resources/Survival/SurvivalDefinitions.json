@@ -257,6 +257,31 @@
       "quickUse": true,
       "hungerRelief": 35,
       "healing": 5
+    },
+    {
+      "id": "ladder",
+      "name": "알루미늄 사다리",
+      "unit": "개"
+    },
+    {
+      "id": "steel_plank",
+      "name": "강철 발판",
+      "unit": "개"
+    },
+    {
+      "id": "cargo_belt",
+      "name": "화물 고정 벨트",
+      "unit": "개"
+    },
+    {
+      "id": "rope",
+      "name": "로프",
+      "unit": "개"
+    },
+    {
+      "id": "stretcher",
+      "name": "들것",
+      "unit": "개"
     }
   ],
   "locations": [
@@ -675,6 +700,28 @@
       "travelHours": 3,
       "searchHours": 0,
       "requiresStoryFlag": "sp_station",
+      "storyOnly": true,
+      "loot": []
+    },
+    {
+      "id": "construction_site",
+      "name": "공사 현장",
+      "mapLabel": "공사 현장",
+      "description": "공사가 멈춘 빌라 현장. 비계는 반쯤 해체된 채이고, 자재 창고 문은 비틀려 열려 있다. 사다리와 비계 발판이 쌓여 있지만 하나만 들어도 두 팔이 다 찬다.",
+      "travelHours": 2,
+      "searchHours": 0,
+      "requiresStoryFlag": "broken_path",
+      "storyOnly": true,
+      "loot": []
+    },
+    {
+      "id": "seongnae_bridge",
+      "name": "성내천 보행교",
+      "mapLabel": "보행교",
+      "description": "성내천을 건너는 마지막 보행교. 가운데가 잘려 나가 교각 하나를 사이에 두고 짧은 틈 두 개가 생겼다. 건너편 블록에 고립 보호소가 있다.",
+      "travelHours": 2,
+      "searchHours": 0,
+      "requiresStoryFlag": "broken_path",
       "storyOnly": true,
       "loot": []
     }

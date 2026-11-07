@@ -81,7 +81,7 @@ namespace VanishingDays
         }
         bool TryMeetDongrim(SurvivalDefinitions data)
         {
-            if(!CanAct || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=DongrimMeetingLocation) return false;
+            if(!CanAct || BrokenPathActive || BrokenPath?.DonglimAlive==false || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=DongrimMeetingLocation) return false;
             PendingDongrimMeeting=true;
             Note("[최동림 재회] "+data.Location(CurrentLocation).name+"에서 익숙한 목소리가 들렸다.");
             return true;

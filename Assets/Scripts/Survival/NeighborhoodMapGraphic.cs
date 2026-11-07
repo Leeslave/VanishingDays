@@ -18,7 +18,7 @@ namespace VanishingDays
         public string[] VisibleLocations=new string[0];
         public static Vector2 Position(string id)
         {
-            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); case "relay_room":return new Vector2(.33f,.27f); case "sp_station":return new Vector2(.84f,.46f); default:return new Vector2(.84f,.18f); }
+            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); case "relay_room":return new Vector2(.33f,.27f); case "sp_station":return new Vector2(.84f,.46f); case "construction_site":return new Vector2(.33f,.6f); case "seongnae_bridge":return new Vector2(.68f,.3f); default:return new Vector2(.84f,.18f); }
         }
         VertexHelper mesh;
         Vector2 Point(float x,float y) => new Vector2(rectTransform.rect.xMin+x*rectTransform.rect.width,rectTransform.rect.yMax-y*rectTransform.rect.height);
@@ -109,6 +109,21 @@ namespace VanishingDays
                     Line(c+new Vector2(-10,baseY),c+new Vector2(0,17),3,ink); Line(c+new Vector2(10,baseY),c+new Vector2(0,17),3,ink);
                     Line(c+new Vector2(-6,station?-4:6),c+new Vector2(6,station?-4:6),3,ink);
                     Ring(c+new Vector2(0,17),5,2,ink);
+                }
+                else if(id=="construction_site")
+                {
+                    // A tower crane: mast, jib and a hanging hook.
+                    Line(c+new Vector2(-8,-17),c+new Vector2(-8,16),4,ink); Line(c+new Vector2(-14,16),c+new Vector2(17,16),4,ink);
+                    Line(c+new Vector2(-8,8),c+new Vector2(4,16),2,ink); Line(c+new Vector2(12,16),c+new Vector2(12,0),2,ink);
+                    Quad(c+new Vector2(8,0),c+new Vector2(16,0),c+new Vector2(16,-6),c+new Vector2(8,-6),ink);
+                    Line(c+new Vector2(-17,-17),c+new Vector2(4,-17),4,ink);
+                }
+                else if(id=="seongnae_bridge")
+                {
+                    // Two deck pieces with a pier left standing between two short gaps.
+                    Line(c+new Vector2(-18,4),c+new Vector2(-10,4),5,ink); Line(c+new Vector2(10,4),c+new Vector2(18,4),5,ink);
+                    Line(c+new Vector2(-3,4),c+new Vector2(3,4),5,ink); Line(c+new Vector2(0,4),c+new Vector2(0,-14),4,ink);
+                    Line(c+new Vector2(-18,-10),c+new Vector2(18,-10),2,new Color32(143,176,192,255)); Line(c+new Vector2(-14,-15),c+new Vector2(14,-15),2,new Color32(143,176,192,255));
                 }
                 else if(id=="school")
                 {

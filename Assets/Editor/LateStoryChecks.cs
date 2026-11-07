@@ -52,7 +52,7 @@ namespace VanishingDays.Editor
             try
             {
                 var fresh=SurvivalState.NewGame(GameDifficulty.NORMAL,data,7);
-                check(fresh.CurrentBeat(data)==null && !fresh.TryBeginLateStory(data) && fresh.Locations.Count==10,"Late story started before the first expedition.");
+                check(fresh.CurrentBeat(data)==null && !fresh.TryBeginLateStory(data) && fresh.Locations.Count==data.locations.Length,"Late story started before the first expedition.");
                 check(!fresh.IsLocationUnlocked("relay_room",data) && !fresh.IsLocationUnlocked("sp_station",data),"Story places visible from the start.");
 
                 var s=AfterExpedition(data);
@@ -103,9 +103,9 @@ namespace VanishingDays.Editor
                 s.ChooseLateStory(0,data); check(s.EndingId=="last_broadcast","Last broadcast ending wrong.");
 
                 // Saves written before the late story keep their progress and gain the new places.
-                var old=AfterExpedition(data); old.Locations.RemoveAll(x=>x.id=="relay_room" || x.id=="sp_station"); old.LateFlags=null; old.EndingId=null;
+                var old=AfterExpedition(data); old.Locations.RemoveAll(x=>x.id=="relay_room" || x.id=="sp_station" || x.id=="construction_site" || x.id=="seongnae_bridge"); old.LateFlags=null; old.EndingId=null;
                 clean(); File.WriteAllText(path,JsonUtility.ToJson(old));
-                check(saves.TryLoad(out restored,out _) && restored.Locations.Count==10 && restored.LateFlags!=null && restored.CurrentBeat(data)?.id=="absent_share","Older save did not gain the late story.");
+                check(saves.TryLoad(out restored,out _) && restored.Locations.Count==data.locations.Length && restored.LateFlags!=null && restored.CurrentBeat(data)?.id=="absent_share","Older save did not gain the late story.");
                 Debug.Log("VD_LATE_STORY_CHECKS_OK: "+checks+" assertions; gates, saves, unlocks, moved neighbor and all four endings.");
             }
             finally { data.TEMP_BALANCE.hungerPerHour=hunger; clean(); }

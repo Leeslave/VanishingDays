@@ -49,6 +49,7 @@ namespace VanishingDays
         [NonSerialized] public LifeStoryDefinition lifeStory;
         [NonSerialized] public CraftingCatalog crafting;
         [NonSerialized] public LateStoryDefinition lateStory;
+        [NonSerialized] public BrokenPathDefinition brokenPath;
         public ItemDefinition Item(string id) => Array.Find(items,x=>x.id==id);
         public LocationDefinition Location(string id) => Array.Find(locations,x=>x.id==id);
         public RecipeDefinition Recipe(string id) => Array.Find(recipes,x=>x.id==id);
@@ -57,11 +58,11 @@ namespace VanishingDays
         {
             var asset=Resources.Load<TextAsset>("Survival/SurvivalDefinitions");
             if(asset==null) throw new InvalidOperationException("Survival definitions missing.");
-            var data=JsonUtility.FromJson<SurvivalDefinitions>(asset.text); data.erasureNews=ErasureNewsCatalog.Load(); data.lifeStory=LifeStoryDefinition.Load(); data.crafting=CraftingCatalog.Load(); data.lateStory=LateStoryDefinition.Load(); data.Validate(); return data;
+            var data=JsonUtility.FromJson<SurvivalDefinitions>(asset.text); data.erasureNews=ErasureNewsCatalog.Load(); data.lifeStory=LifeStoryDefinition.Load(); data.crafting=CraftingCatalog.Load(); data.lateStory=LateStoryDefinition.Load(); data.brokenPath=BrokenPathDefinition.Load(); data.Validate(); return data;
         }
         public void Validate()
         {
-            if(version!=5 || TEMP_BALANCE==null || locations==null || locations.Length!=10 || items==null || recipes==null || security==null) throw new InvalidOperationException("Invalid v0.5 definitions.");
+            if(version!=5 || TEMP_BALANCE==null || locations==null || locations.Length!=12 || items==null || recipes==null || security==null) throw new InvalidOperationException("Invalid v0.5 definitions.");
             if(erasureNews==null) throw new InvalidOperationException("Missing erasure catalog.");
             if(difficultyRates==null || difficultyRates.Length!=3) throw new InvalidOperationException("Missing difficulty rates.");
             foreach(GameDifficulty difficulty in Enum.GetValues(typeof(GameDifficulty)))
@@ -77,6 +78,9 @@ namespace VanishingDays
             foreach(var text in new[]{dongrimFollowup.secondMeeting,dongrimFollowup.thirdMeeting,dongrimFollowup.patrolMeeting,dongrimFollowup.secondCompleted,dongrimFollowup.thirdCompleted,dongrimFollowup.patrolCompleted}) if(string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("Missing follow-up script.");
             foreach(var place in locations) if((!string.IsNullOrEmpty(place.requiresLocation) && (Location(place.requiresLocation)==null || place.requiresLocation==place.id || place.requiresSearches<1)) || place.requiresDongrimMeetings<0) throw new InvalidOperationException("Invalid location unlock.");
             foreach(var device in security) if(!string.IsNullOrEmpty(device.requiresSecurity) && (Security(device.requiresSecurity)==null || device.requiresSecurity==device.id)) throw new InvalidOperationException("Invalid security prerequisite.");
+            foreach(var id in new[]{"construction_site","seongnae_bridge"}) if(Location(id)==null || !Location(id).storyOnly || Location(id).requiresStoryFlag!="broken_path") throw new InvalidOperationException("Invalid act 3 place: "+id);
+            if(brokenPath==null) throw new InvalidOperationException("Missing broken path script.");
+            brokenPath.Validate(this);
             if(!Location("supply_site").requiresSupplyRumor || !Location("supply_site").storyOnly || Location("supply_site").loot.Length!=0) throw new InvalidOperationException("Invalid story location.");
             foreach(var id in new[]{"relay_room","sp_station"}) if(Location(id)==null || !Location(id).storyOnly || Location(id).requiresStoryFlag!=id || Location(id).loot.Length!=0) throw new InvalidOperationException("Invalid late story location: "+id);
             if(lateStory==null) throw new InvalidOperationException("Missing late story.");

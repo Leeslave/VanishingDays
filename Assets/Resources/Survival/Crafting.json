@@ -413,6 +413,48 @@
         }
       ],
       "description": "수율 100% · 혼탁한 물 4병 → 생수 4병. 정수 손실 없이 집에서 식수를 자급한다."
+    },
+    {
+      "id": "make_rope",
+      "name": "로프 꼬기",
+      "category": "living",
+      "hours": 1,
+      "ingredients": [
+        {
+          "id": "cord",
+          "amount": 3
+        },
+        {
+          "id": "cloth",
+          "amount": 1
+        }
+      ],
+      "amount": 1,
+      "result": "rope",
+      "description": "끈을 꼬아 로프 1개를 만든다. 난간과 하강용으로 쓴다."
+    },
+    {
+      "id": "make_stretcher",
+      "name": "들것 만들기",
+      "category": "living",
+      "hours": 2,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 3
+        },
+        {
+          "id": "cord",
+          "amount": 2
+        }
+      ],
+      "amount": 1,
+      "result": "stretcher",
+      "description": "걷지 못하는 사람을 옮길 들것 1개를 만든다."
     }
   ]
 }

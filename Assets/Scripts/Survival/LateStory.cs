@@ -69,6 +69,8 @@ namespace VanishingDays
         public bool TryBeginLateStory(SurvivalDefinitions data)
         {
             var beat=CurrentBeat(data);
+            // Act 3 holds the later scenes until the people on the far side of the bridge are brought back.
+            if(BrokenPathActive) return false;
             if(beat==null || !CanAct || day<LateReadyDay || CurrentLocation!=beat.location || beat.daytime && IsNight(data.TEMP_BALANCE)) return false;
             LateScenePending=true; Note("["+beat.chapter+"] "+beat.title);
             return true;
