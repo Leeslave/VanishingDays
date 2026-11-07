@@ -69,7 +69,7 @@ namespace VanishingDays
         public bool IsGameOver => Vitals.CurrentHP<=0;
         public DateTime CalendarDate => new DateTime(2031,2,26).AddDays(day-1);
         public bool IsNight(SurvivalBalance balance) => hour<balance.dayStarts || hour>=balance.nightStarts;
-        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion;
+        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion && !LateScenePending && !HasEnded;
         public bool CanUseRadio => Story.HasRadio && (Backpack.Count("radio")>0 || (CurrentLocation=="home" && HomeStorage.Count("radio")>0));
         public static SurvivalState NewGame(GameDifficulty difficulty,SurvivalDefinitions definitions,uint seed=0)
         {
@@ -164,8 +164,8 @@ namespace VanishingDays
             if(returning && Companion==CompanionStep.Preparation) CompanionHomePrepared=true;
             RecordFact("travel",data.Location(destination).name+"에 도착했다.");
             if(destination=="supply_site") Story.SupplySiteVisited=true;
-            Report(data.Location(destination).name+"에 도착했다. "+(IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
-            if(!TryMeetDongrim(data)) CheckEncounter(false,data,random);
+            Report(returning?"집에 돌아왔다. 문을 걸어 잠그고 숨을 돌린다.":data.Location(destination).name+"에 도착했다. "+(IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
+            if(!TryMeetDongrim(data) && !TryBeginLateStory(data)) CheckEncounter(false,data,random);
             if(returning)
             {
                 if(AwayFromHome && Roll(random)<HomeRaidRisk(data)) Note("집을 비운 사이 누군가 들어왔다. "+LoseSupplies(HomeStorage,data.TEMP_BALANCE.homeLoss,data));

@@ -53,7 +53,8 @@ namespace VanishingDays
             var sleep=facts.FirstOrDefault(x=>x.kind=="sleep"); if(sleep!=null) lines.Add(sleep.text.Replace("{hours}",sleep.count.ToString()));
             lines.AddRange(facts.Where(x=>x.kind=="neighbor" || x.kind=="cook").Select(x=>x.text).Distinct().TakeLast(2));
             if(lines.Count==0) lines.Add("새로 적어 둘 탐사나 만남은 없었다. 오늘 확인한 일만 기록으로 남긴다.");
-            if(Story.HasMetDongrim) lines.Add("알고 있는 다음 약속: "+DongrimHint(data));
+            if(CurrentBeat(data)!=null) lines.Add("알고 있는 다음 약속: "+LateHint(data));
+            else if(Story.HasMetDongrim) lines.Add("알고 있는 다음 약속: "+DongrimHint(data));
             string author=string.IsNullOrWhiteSpace(PlayerNickname)?ProtagonistScriptName:PlayerNickname;
             string body="기록지 #"+date.ToString("000")+"\n"+new DateTime(2031,2,26).AddDays(date-1).ToString("yyyy.MM.dd")+" · 작성자 : "+author+"\n\n"+(date==PartialDiaryDay?"기록을 다시 이어 쓰기 시작한 뒤 확인한 일들이다.\n\n":"")+string.Join("\n\n",lines);
             Diaries.Add(new DiaryEntry{day=date,body=body}); LastDiaryDay=date;

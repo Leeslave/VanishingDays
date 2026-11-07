@@ -61,7 +61,7 @@ namespace VanishingDays
                     RecordFact("expedition",withdraw?"동림의 걸음이 불편해 먼저 철수했다. 학교 앞에서 지우에게 돌아왔음을 알렸다.":"더 깊이 들어가지 않고 입구의 표식만 확인한 뒤 학교 앞에서 지우에게 결과를 전했다.");
                     return Report(CompanionText(data));
                 case CompanionStep.Debrief:
-                    Companion=CompanionStep.Completed;
+                    Companion=CompanionStep.Completed; LateReadyDay=day+1;
                     RecordFact("expedition","첫 동행을 마치고 해산했다. 각자 거처로 돌아가기로 했다.");
                     return Report("동림과 지우에게 다음에도 귀환 소식을 전하기로 했다. 생활 거점은 송파구 자취방이다. 지도에서 집으로 돌아갈 수 있다.");
                 default:return "현재 이어갈 동행 탐사가 없다.";
@@ -69,6 +69,7 @@ namespace VanishingDays
         }
         public string GreetNeighbor(SurvivalDefinitions data)
         {
+            if(NeighborMoved) return data.lateStory.neighborMoved;
             if(!CanAct || CurrentLocation!="home" || NeighborLastDay>=day || NeighborStage==2) return "오늘의 안부는 이미 나눴다. 답이 없었다면 문 앞에서 직접 확인할 수 있다.";
             NeighborLastDay=day; NeighborGreetings++;
             NeighborIntroductionSeen=true;
@@ -78,7 +79,7 @@ namespace VanishingDays
         }
         public string CheckNeighbor(SurvivalDefinitions data)
         {
-            if(!CanAct || CurrentLocation!="home" || NeighborStage!=2) return "지금 확인할 이웃의 안부는 없다.";
+            if(!CanAct || CurrentLocation!="home" || NeighborStage!=2 || NeighborMoved) return "지금 확인할 이웃의 안부는 없다.";
             AdvanceTime(1,data); if(IsGameOver) return Report("문 앞까지 갈 힘이 남지 않았다.");
             NeighborStage=3; NeighborLastDay=day;
             RecordFact("neighbor","옆집 문 앞에서 노인을 직접 확인했다. 잠들어 두드림을 듣지 못했다고 했다.");

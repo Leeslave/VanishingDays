@@ -25,7 +25,7 @@ namespace VanishingDays
         public bool IsLocationUnlocked(string id,SurvivalDefinitions data)
         {
             var location=data.Location(id);
-            return location!=null && (!location.requiresSupplyRumor || Story.SupplyRumorUnlocked) && (UnlockedLocations.Contains(id) || (string.IsNullOrEmpty(location.requiresLocation) && location.requiresDongrimMeetings==0));
+            return location!=null && (!location.requiresSupplyRumor || Story.SupplyRumorUnlocked) && IsStoryLocationOpen(location) && (UnlockedLocations.Contains(id) || (string.IsNullOrEmpty(location.requiresLocation) && location.requiresDongrimMeetings==0));
         }
         public bool CanApproachCrowd(SurvivalDefinitions data) => CanAct && CurrentLocation=="supply_site" && Story.SupplySiteVisited && Story.SupplyRumorUnlocked && Story.HasHeardSPBroadcast && !IsNight(data.TEMP_BALANCE) && !Story.CrowdIncidentResolved && Story.CanTriggerDongrimFirstEncounter(true);
         public string ObserveSupplySite(SurvivalDefinitions data)

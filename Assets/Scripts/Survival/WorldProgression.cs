@@ -17,7 +17,7 @@ namespace VanishingDays
         {
             foreach(var place in data.locations)
             {
-                if(IsLocationUnlocked(place.id,data) || place.requiresSupplyRumor) continue;
+                if(IsLocationUnlocked(place.id,data) || place.requiresSupplyRumor || !string.IsNullOrEmpty(place.requiresStoryFlag)) continue;
                 var source=Locations.Find(x=>x.id==place.requiresLocation);
                 if((string.IsNullOrEmpty(place.requiresLocation) || source!=null && source.searches>=place.requiresSearches) && TotalDongrimMeetings>=place.requiresDongrimMeetings)
                 {
@@ -57,6 +57,7 @@ namespace VanishingDays
         {
             var place=data.Location(id); var progress=Locations.Find(x=>x.id==id);
             if(id=="home") return "문 보강 "+DoorLevel+" / 3단계";
+            if(place.storyOnly && id!="supply_site") return "이야기 장소 · 수색 물자 없음";
             if(place.storyOnly) return Story.CrowdIncidentResolved?"현장 기록 완료":"제보 확인 · 수색 물자 없음";
             bool visited=VisitedLocations.Contains(id) || progress.searches>0;
             if(!visited) return "미수색 · 잔량 미확인";
@@ -66,6 +67,7 @@ namespace VanishingDays
         }
         public string WorldHint(SurvivalDefinitions data)
         {
+            if(CurrentBeat(data)!=null) return LateHint(data);
             if(Story.HasMetDongrim) return DongrimHint(data);
             if(!IsLocationUnlocked("empty_house",data)) return "편의점을 수색해 주변 골목의 단서를 찾자.";
             if(!IsLocationUnlocked("school",data)) return "빈집을 수색하면 학교로 통하는 길을 확인할 수 있다.";

@@ -18,7 +18,7 @@ namespace VanishingDays
         public string[] VisibleLocations=new string[0];
         public static Vector2 Position(string id)
         {
-            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); default:return new Vector2(.84f,.18f); }
+            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); case "relay_room":return new Vector2(.33f,.27f); case "sp_station":return new Vector2(.84f,.46f); default:return new Vector2(.84f,.18f); }
         }
         VertexHelper mesh;
         Vector2 Point(float x,float y) => new Vector2(rectTransform.rect.xMin+x*rectTransform.rect.width,rectTransform.rect.yMax-y*rectTransform.rect.height);
@@ -70,6 +70,52 @@ namespace VanishingDays
                     Line(c+new Vector2(-16,2),c+new Vector2(0,17),5,ink); Line(c+new Vector2(0,17),c+new Vector2(16,2),5,ink);
                     Line(c+new Vector2(-12,1),c+new Vector2(-12,-16),4,ink); Line(c+new Vector2(12,1),c+new Vector2(12,-16),4,ink);
                     Line(c+new Vector2(-12,-16),c+new Vector2(12,-16),4,ink);
+                }
+                // Each kind of place gets its own glyph so neighbouring markers can be told apart at a glance.
+                else if(id=="store")
+                {
+                    Quad(c+new Vector2(-15,4),c+new Vector2(15,4),c+new Vector2(15,-16),c+new Vector2(-15,-16),ink);
+                    for(int i=0;i<3;i++) Quad(c+new Vector2(-18+i*12,16),c+new Vector2(-12+i*12,16),c+new Vector2(-12+i*12,6),c+new Vector2(-18+i*12,6),ink);
+                    Quad(c+new Vector2(-5,-4),c+new Vector2(5,-4),c+new Vector2(5,-16),c+new Vector2(-5,-16),new Color32(24,29,29,255));
+                }
+                else if(id=="empty_house")
+                {
+                    Line(c+new Vector2(-16,2),c+new Vector2(0,17),4,ink); Line(c+new Vector2(0,17),c+new Vector2(9,9),4,ink);
+                    Line(c+new Vector2(-12,1),c+new Vector2(-12,-16),3,ink); Line(c+new Vector2(12,-2),c+new Vector2(12,-16),3,ink);
+                    Line(c+new Vector2(-12,-16),c+new Vector2(12,-16),3,ink);
+                    Line(c+new Vector2(-6,-2),c+new Vector2(6,-12),3,ink); Line(c+new Vector2(6,-2),c+new Vector2(-6,-12),3,ink);
+                }
+                else if(id=="pharmacy")
+                {
+                    Quad(c+new Vector2(-5,16),c+new Vector2(5,16),c+new Vector2(5,-16),c+new Vector2(-5,-16),ink);
+                    Quad(c+new Vector2(-16,5),c+new Vector2(16,5),c+new Vector2(16,-5),c+new Vector2(-16,-5),ink);
+                }
+                else if(id=="hardware")
+                {
+                    Line(c+new Vector2(-12,-14),c+new Vector2(6,6),5,ink);
+                    Quad(c+new Vector2(-2,16),c+new Vector2(16,0),c+new Vector2(10,-6),c+new Vector2(-8,10),ink);
+                }
+                else if(id=="supply_site")
+                {
+                    Line(c+new Vector2(-14,14),c+new Vector2(14,14),3,ink); Line(c+new Vector2(14,14),c+new Vector2(14,-14),3,ink);
+                    Line(c+new Vector2(14,-14),c+new Vector2(-14,-14),3,ink); Line(c+new Vector2(-14,-14),c+new Vector2(-14,14),3,ink);
+                    Line(c+new Vector2(-14,14),c+new Vector2(14,-14),3,ink); Line(c+new Vector2(14,14),c+new Vector2(-14,-14),3,ink);
+                }
+                else if(id=="sp_station" || id=="relay_room")
+                {
+                    // A mast: the station's is tall and free-standing, the relay room's sits on a small building.
+                    bool station=id=="sp_station"; float baseY=station?-17:-2;
+                    if(!station) Quad(c+new Vector2(-14,-2),c+new Vector2(14,-2),c+new Vector2(14,-17),c+new Vector2(-14,-17),ink);
+                    Line(c+new Vector2(-10,baseY),c+new Vector2(0,17),3,ink); Line(c+new Vector2(10,baseY),c+new Vector2(0,17),3,ink);
+                    Line(c+new Vector2(-6,station?-4:6),c+new Vector2(6,station?-4:6),3,ink);
+                    Ring(c+new Vector2(0,17),5,2,ink);
+                }
+                else if(id=="school")
+                {
+                    Quad(c+new Vector2(-17,2),c+new Vector2(17,2),c+new Vector2(17,-17),c+new Vector2(-17,-17),ink);
+                    Line(c+new Vector2(0,2),c+new Vector2(0,18),3,ink);
+                    Quad(c+new Vector2(1,18),c+new Vector2(13,14),c+new Vector2(1,10),c+new Vector2(1,10),ink);
+                    for(int col=0;col<3;col++) { Vector2 window=c+new Vector2(-12+col*10,-4); Quad(window,window+Vector2.right*5,window+new Vector2(5,-6),window+Vector2.down*6,new Color32(24,29,29,255)); }
                 }
                 else
                 {

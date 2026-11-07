@@ -53,6 +53,7 @@ namespace VanishingDays
                     if(restored?.schemaVersion==11) { restored.UpgradeCrafting(definitions); restored.schemaVersion=12; }
                     if(restored?.schemaVersion==12) { restored.UpgradeSurvivalBalance(definitions); restored.schemaVersion=13; }
                     restored?.UpgradeOnboarding();
+                    restored?.UpgradeLateStory(definitions);
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
                     Validate(restored,definitions,legacyVitals);
@@ -96,6 +97,17 @@ namespace VanishingDays
             ValidateStory(s,data);
             ValidateErasureNews(s,data);
             ValidateDailyLife(s);
+            ValidateLateStory(s,data);
+        }
+        static void ValidateLateStory(SurvivalState s,SurvivalDefinitions data)
+        {
+            var story=data.lateStory;
+            if(s.LateFlags==null || s.EndingId==null || s.LateStep<0 || s.LateStep>=story.beats.Length || s.LateReadyDay<0 || s.Care<0 || s.LateTrust<0 || s.Isolation<0 || s.Lure<0) throw new InvalidDataException("Invalid late story progress.");
+            if((s.LateStep>0 || s.LateScenePending || s.HasEnded || s.LateFlags.Count>0) && !s.LateStoryStarted) throw new InvalidDataException("Late story started early.");
+            if(s.HasEnded && (story.Ending(s.EndingId)==null || s.LateScenePending)) throw new InvalidDataException("Invalid ending.");
+            foreach(var flag in s.LateFlags) if(string.IsNullOrWhiteSpace(flag) || s.LateFlags.FindAll(x=>x==flag).Count!=1) throw new InvalidDataException("Invalid late story flag.");
+            var beat=s.CurrentBeat(data);
+            if(s.LateScenePending && (beat==null || s.CurrentLocation!=beat.location || s.PendingEncounter!=null || s.PendingDongrimMeeting || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid late story scene.");
         }
         static void ValidateDailyLife(SurvivalState s)
         {

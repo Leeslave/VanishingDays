@@ -112,7 +112,9 @@ namespace VanishingDays
             var rect=Box(name,x,y,w,h,frame,parent);
             var face=Box("Fill",2,2,w-4,h-4,fill,rect).GetComponent<Image>(); face.raycastTarget=true;
             var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=face; button.interactable=enabled;
-            var colors=button.colors; colors.highlightedColor=new Color(1.25f,1.22f,1.15f); colors.pressedColor=new Color(.8f,.76f,.68f); colors.disabledColor=new Color(.62f,.62f,.62f,.7f); button.colors=colors;
+            // No lingering selected tint: a clicked control should not keep a focus box after the pointer leaves.
+            var colors=button.colors; colors.highlightedColor=new Color(1.25f,1.22f,1.15f); colors.pressedColor=new Color(.8f,.76f,.68f); colors.selectedColor=colors.normalColor; colors.disabledColor=new Color(.62f,.62f,.62f,.7f); button.colors=colors;
+            button.navigation=new Navigation{mode=Navigation.Mode.None};
             if(click!=null) button.onClick.AddListener(()=>click());
             return button;
         }
@@ -191,11 +193,23 @@ namespace VanishingDays
         // journal: the diary-page treatment for what the survivor writes down about the current place.
         void Paragraph(string text,float y,float height,int size=27,bool journal=false)
         {
-            ScrollArea("Scrollable text",y,height,journal?JournalPaper:Panel,out var content);
+            var area=ScrollArea("Scrollable text",y,height,journal?JournalPaper:Panel,out var content);
             var label=Label(text,24,16,756,height-32,size,journal?JournalInk:Paper,content); label.lineSpacing=journal?1.3f:1.18f;
             // Dark glyphs on the light page blend thin in linear color space; bold keeps them legible.
             if(journal) label.fontStyle=FontStyle.Bold;
-            float h=Mathf.Max(height,label.preferredHeight+36); content.sizeDelta=new Vector2(804,h); label.rectTransform.sizeDelta=new Vector2(756,h-32);
+            float needed=label.preferredHeight+36;
+            // Short text gets a box its own size instead of a large empty panel.
+            if(needed<height-60) { height=Mathf.Max(needed,120); area.sizeDelta=new Vector2(804,height); }
+            float h=Mathf.Max(height,needed); content.sizeDelta=new Vector2(804,h); label.rectTransform.sizeDelta=new Vector2(756,h-32);
+            if(h>height+4) MoreBelow(area,journal?JournalPaper:Panel,journal?JournalInk:Muted);
+        }
+        // Clipped text says so at its bottom edge until the reader scrolls to the end.
+        void MoreBelow(RectTransform area,Color fill,Color ink)
+        {
+            float height=area.sizeDelta.y;
+            var cue=Box("More below",0,height-46,804,46,new Color(fill.r,fill.g,fill.b,.94f),area);
+            var label=Label("아래로 더 있음 ↓",24,8,756,32,20,ink,cue); label.alignment=TextAnchor.MiddleRight; label.fontStyle=FontStyle.Bold;
+            area.GetComponent<ScrollRect>().onValueChanged.AddListener(p=>cue.gameObject.SetActive(p.y>.02f));
         }
         void Clear()
         {
@@ -214,9 +228,11 @@ namespace VanishingDays
             inventoryScroll=null;
             Clear();
             if(page=="continue") { ContinuePage(); return; }
-            Header(); Dock();
+            // After an ending there is nothing left to act on, so the action dock and tabs give way to the ending page.
+            Header(); if(!state.HasEnded) Dock();
             if(confirmRestart) { RestartPage(); return; }
             if(state.IsGameOver && page!="menu") { GameOver(); return; }
+            if(state.HasEnded && page!="menu") { EndingPage(); return; }
             if(state.PendingEncounter!=null) { EncounterPage(); return; }
             if(state.HasActiveCrowdIncident) { CrowdIncidentPage(); return; }
             if(state.PendingDongrimMeeting) { DongrimMeetingPage(); return; }
@@ -227,6 +243,9 @@ namespace VanishingDays
                 if(state.NextDiary!=null) { DiaryPage(true); return; }
                 if(state.HasPendingMorning) { selectedMorningDay=0; MorningPage(); return; }
             }
+            // A story scene starts once the player is at its place on a safe screen, after the day's records.
+            if(state.TryBeginLateStory(definitions)) Save();
+            if(state.LateScenePending) { LateStoryPage(); return; }
             if(neighborInvitationPending && page=="home" && state.CurrentLocation=="home" && state.NeedsNeighborIntroduction && !state.TutorialActive) { NeighborIntroductionPage(); return; }
             int topic=page=="water"?2:page=="inventory"?3:page=="map"?4:page=="sleep"?5:0;
             bool tutorialChanged=state.ViewTutorialTopic(topic);
@@ -271,7 +290,7 @@ namespace VanishingDays
             Label(state.CalendarDate.ToString("yyyy.MM.dd"),268,28,420,30,21,Muted);
             Box(night?"Night":"Day",268,72,12,12,night?Cold:Amber);
             var clock=Label(state.hour.ToString("00")+":00  ·  "+(night?"밤":"낮")+"  ·  "+definitions.Location(state.CurrentLocation).name,292,60,460,38,25,Paper); clock.fontStyle=FontStyle.Bold;
-            var menu=Pressable("메뉴",764,16,88,88,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver) && !state.HasLifeNotice,Ink,Ink);
+            var menu=Pressable("메뉴",764,16,88,88,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver || state.HasEnded) && !state.HasLifeNotice,Ink,Ink);
             for(int i=0;i<3;i++) Box("Menu line",24,26+i*16,i==2?26:40,4,menu.interactable?Paper:Faint,menu.transform);
 
             int cap=state.Vitals.RecoverableMaxHP(definitions.TEMP_BALANCE);
@@ -281,7 +300,8 @@ namespace VanishingDays
             Box("HP recoverable",48,170,804*(cap/(float)state.Vitals.BaseMaxHP),16,Track);
             Box("Current HP",48,170,804*(Mathf.Min(state.Vitals.CurrentHP,cap)/(float)state.Vitals.BaseMaxHP),16,Amber);
             Label("정신력 "+state.Vitals.CurrentMental+" / "+state.Vitals.MentalCap,48,198,500,40,26,Paper).fontStyle=FontStyle.Bold;
-            var sleep=Label("수면 "+state.SleepHours+" / 6h",552,204,300,32,21,Muted); sleep.alignment=TextAnchor.UpperRight;
+            // Sleep counts until the 08:00 review, so past 6h it reads as "enough" rather than "16 / 6h".
+            var sleep=Label(state.SleepHours>=6?"수면 충분 · "+state.SleepHours+"h":"수면 "+state.SleepHours+" / 6h",552,204,300,32,21,Muted); sleep.alignment=TextAnchor.UpperRight;
             Hatched("Mental blocked",48,244,804,10);
             Box("Mental capacity",48,244,804*(state.Vitals.MentalCap/(float)state.Vitals.BaseMaxMental),10,Track);
             Box("Mental current",48,244,804*(state.Vitals.CurrentMental/(float)state.Vitals.BaseMaxMental),10,Cold);
@@ -372,9 +392,11 @@ namespace VanishingDays
                 Paragraph(ReportText,776,142,25,true);
                 Button("정보 카드 · 방송 전문 다시 읽기",48,930,804,60,()=>{page="radio";Render();});
             }
-            else Paragraph(string.IsNullOrEmpty(message) && state.journal.Count==1?definitions.Location("home").description:ReportText,776,214,25,true);
+            // Without a fresh result the page describes home rather than replaying an old, unrelated report.
+            else Paragraph(string.IsNullOrEmpty(message)?definitions.Location("home").description+(state.CurrentBeat(definitions)!=null?"\n\n"+state.LateHint(definitions):""):message,776,214,25,true);
+            // Sleep and the outing already live in the dock; the list offers what the dock does not.
             Choice(0,"요리하고 식사한다","집에 보관한 식량을 사용한다",1010,()=>{page="kitchen"; message=""; Render();});
-            Choice(1,"잠을 잔다","하루 6시간 필요 · 수면 시간을 선택한다",1122,()=>{page="sleep";message="";Render();});
+            Choice(1,"외출 준비 · 물품을 챙긴다","물·식량·약품을 가방에 넣는다 · 시간 소모 없음",1122,()=>{page="inventory";message="";Render();});
             Choice(2,state.Story.HasRadio?"라디오를 켠다":"제작대를 확인한다",state.Story.HasRadio?"SP 기지국의 방송을 수신한다":"음식 · 무기 · 생활용품을 만든다",1234,()=>{if(state.Story.HasRadio) OpenRadio(); else {page="craft"; message=""; Render();}});
         }
         // A pill set over the illustration's top-right corner; returns its left edge so badges can line up.
@@ -390,7 +412,7 @@ namespace VanishingDays
         void Explore()
         {
             var location=definitions.Location(state.CurrentLocation);
-            if(location.storyOnly) { SupplySitePage(); return; }
+            if(location.storyOnly) { if(location.id=="supply_site") SupplySitePage(); else StoryPlacePage(location); return; }
             Hero(location.name,state.LootSummary(location.id,definitions),true);
             Paragraph(string.IsNullOrEmpty(message)?location.description:message,776,214,25,true);
             Choice(0,"주변을 수색한다",state.HasSearchWork(location.id,definitions)?location.searchHours+"시간 · 수색 후 귀가 "+state.HomeArrivalAfterSearch(definitions).ToString("MM.dd HH:mm")+(string.IsNullOrEmpty(state.SearchNightWarning(definitions))?"":" · 야간 주의"):"물자 소진 · 지도에서 다음 목적지를 확인",1010,RequestSearch,state.HasSearchWork(location.id,definitions));
@@ -456,8 +478,8 @@ namespace VanishingDays
             ScrollArea("Location records",1180,192,out var content); float row=10;
             foreach(var location in places)
             {
-                bool meeting=state.Story.HasMetDongrim && location.id==state.DongrimMeetingLocation;
-                Button(location.name+(location.id==state.CurrentLocation?" · 현재":"")+(IsNewPlace(location.id)?" · 새로 발견":"")+(meeting?" · 동림 약속":""),12,row,780,52,()=>SelectLocation(location.id),true,meeting || IsNewPlace(location.id),content);
+                bool meeting=state.Story.HasMetDongrim && location.id==state.DongrimMeetingLocation, story=state.CurrentBeat(definitions)?.location==location.id;
+                Button(location.name+(location.id==state.CurrentLocation?" · 현재":"")+(IsNewPlace(location.id)?" · 새로 발견":"")+(story?" · 이야기":meeting?" · 동림 약속":""),12,row,780,52,()=>SelectLocation(location.id),true,story || meeting || IsNewPlace(location.id),content);
                 Label(state.LootSummary(location.id,definitions),30,row+57,744,32,21,Muted,content);
                 row+=104;
             }
@@ -490,7 +512,7 @@ namespace VanishingDays
             string risk=night?"밤에는 만남이 드물지만 약탈꾼에게 발견되면 위험하다.":"낮에는 길거리나 건물 안에서 다른 생존자와 마주칠 수 있다.";
             string resources=state.LootSummary(location.id,definitions,true)+(location.storyOnly?"\n낮에 현장을 살피고 접근 여부를 선택한다.":location.id=="home"?"\n요리 · 물자 보관 · 휴식 · 부상 치료":"\n수색 "+location.searchHours+"시간 / 회");
             if(state.Story.HasMetDongrim && location.id==state.DongrimMeetingLocation) resources+="\n\n"+state.DongrimHint(definitions);
-            Label("잔량·위험 정보 · 위아래로 스크롤",48,938,804,28,18,Muted);
+            Label("잔량·위험 정보",48,938,804,28,18,Muted);
             Paragraph(resources+"\n\n"+risk,974,212,25);
             Button(current?"현재 위치":"이동하기",48,1212,804,76,()=>RequestDeparture(location.id),!current && state.CanAct,true);
             Button("지도로 돌아가기",48,1310,390,70,()=>{page="map"; Render();});
@@ -515,7 +537,6 @@ namespace VanishingDays
             var broadcast=script.firstBroadcast;
             Label("라디오 수신 기록",48,462,804,56,36,Paper);
             Label(broadcast.title,48,540,804,54,25,Amber);
-            Label("방송 본문 · 위아래로 스크롤",48,584,804,24,18,Muted);
             Paragraph(broadcast.body,610,460,27);
             Button("정보 카드 · 가락시장 방송 전문 다시 읽기",48,1090,804,64,()=>{page="radio";Render();});
             Label(script.clueCard,64,1160,772,66,21,Muted);
@@ -574,7 +595,8 @@ namespace VanishingDays
                 foreach(var recipe in definitions.recipes)
                 {
                     ItemPicture(recipe.result,18,y,42,42,content); Label(recipe.name,72,y,714,40,28,Paper,content);
-                    Label(Materials(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간",18,y+46,768,58,22,Muted,content);
+                    var meal=definitions.Item(recipe.result);
+                    Label("필요 "+Materials(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간\n먹으면 허기 -"+meal.hungerRelief+(meal.healing>0?" · 체력 +"+meal.healing:""),18,y+46,768,58,22,Muted,content);
                     Button("조리한다",18,y+106,366,54,()=>Apply(state.Cook(recipe.id,definitions),"craft"),state.CanCook(recipe,definitions),true,content);
                     Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),402,y+106,384,54,()=>Apply(state.Eat(recipe.result,definitions),"craft"),state.Backpack.Count(recipe.result)>0 || state.CurrentLocation=="home" && state.HomeStorage.Count(recipe.result)>0,false,content);
                     y+=184;
@@ -601,7 +623,8 @@ namespace VanishingDays
             content.sizeDelta=new Vector2(804,Mathf.Max(viewport,y));
             content.anchoredPosition=new Vector2(0,Mathf.Clamp(craftOffsets[craftTab],0,content.sizeDelta.y-viewport));
         }
-        string Materials(ItemStack[] costs) => string.Join(" · ",costs.Select(x=>definitions.Item(x.id).name+" "+definitions.Quantity(x.id,state.HomeStorage.Count(x.id))+" / "+definitions.Quantity(x.id,x.amount)));
+        // Need first, stock in brackets: "쌀 0.1kg (보유 3kg)" never reads like a ratio.
+        string Materials(ItemStack[] costs) => string.Join(" · ",costs.Select(x=>definitions.Item(x.id).name+" "+definitions.Quantity(x.id,x.amount)+" (보유 "+definitions.Quantity(x.id,state.HomeStorage.Count(x.id))+")"));
         void SecurityCraftRow(SecurityDefinition device,Transform content,float y)
         {
             bool installed=state.InstalledSecurity.Contains(device.id), prerequisite=string.IsNullOrEmpty(device.requiresSecurity) || state.InstalledSecurity.Contains(device.requiresSecurity);
@@ -663,8 +686,9 @@ namespace VanishingDays
             actions.Add((x,y,w)=>Button("설명",x,y,w,96,()=>{infoItem=id;page="item-info";Render();}));
             if(canTransfer)
             {
-                actions.Add((x,y,w)=>Button("챙기기",x,y,w,96,()=>Apply(state.Transfer(id,true,TransferQuantity(id),definitions),"inventory"),home>0));
-                actions.Add((x,y,w)=>Button("보관",x,y,w,96,()=>Apply(state.Transfer(id,false,TransferQuantity(id),definitions),"inventory"),pack>0));
+                // More than is there moves everything there is, so "전부" works in either direction.
+                actions.Add((x,y,w)=>Button("챙기기",x,y,w,96,()=>Apply(state.Transfer(id,true,Math.Min(TransferQuantity(id),home),definitions),"inventory"),home>0));
+                actions.Add((x,y,w)=>Button("보관",x,y,w,96,()=>Apply(state.Transfer(id,false,Math.Min(TransferQuantity(id),pack),definitions),"inventory"),pack>0));
             }
             if(id=="water") actions.Add((x,y,w)=>PrimaryButton("마시기",x,y,w,96,()=>Apply(state.DrinkWater(),"inventory"),state.CanDrink));
             else if(item.injuriesTreated>0) actions.Add((x,y,w)=>PrimaryButton("치료",x,y,w,96,()=>Apply(state.TreatInjury(id,definitions),"inventory"),state.CanAct && state.Vitals.Injuries.Count>0 && (pack>0 || (atHome && home>0))));
@@ -686,6 +710,7 @@ namespace VanishingDays
             {
                 Label("수량"+(id=="rice"?" (g)":""),48,rowY+26,120,36,22,Muted).fontStyle=FontStyle.Bold;
                 Button("-",156,rowY,88,88,()=>ChangeTransferQuantity(id,-1,Math.Max(pack,home)));
+                Button("전부",530,rowY,120,88,()=>{transferQuantities[id]=Math.Max(1,Math.Max(pack,home));Render();});
                 var inputRect=Box("수량:"+id,252,rowY,170,88,Ink); inputRect.GetComponent<Image>().raycastTarget=true;
                 var input=inputRect.gameObject.AddComponent<InputField>(); input.targetGraphic=inputRect.GetComponent<Image>();
                 var text=Label("",8,8,154,72,30,Paper,inputRect); text.alignment=TextAnchor.MiddleCenter;
@@ -693,7 +718,7 @@ namespace VanishingDays
                 input.text=TransferQuantity(id).ToString();
                 input.onValueChanged.AddListener(value=>transferQuantities[id]=int.TryParse(value,out int quantity)?Math.Max(0,quantity):0);
                 Button("+",430,rowY,88,88,()=>ChangeTransferQuantity(id,1,Math.Max(pack,home)));
-                Label(id=="rice"?"1g 단위":"1개 단위",542,rowY+28,300,34,21,Muted);
+                Label(id=="rice"?"g 단위":"개 단위",666,rowY+28,180,34,21,Muted);
                 rowY+=112;
             }
             float buttonW=(804-16*(actions.Count-1))/(float)Math.Max(1,actions.Count);
@@ -709,7 +734,6 @@ namespace VanishingDays
         {
             Label("최동림 · "+(state.TotalDongrimMeetings+1)+"번째 만남",48,462,804,60,36,Paper);
             Paragraph(state.DongrimDialogue(definitions),550,500,27);
-            Label("대화 본문 · 위아래로 스크롤",48,1060,804,26,18,Muted);
             Choice(0,"식량을 건네고 붕대를 받는다","소지한 참치캔·스팸·라면 중 1개 ↔ 붕대 1개",1100,()=>Apply(state.ResolveDongrimMeeting(true,definitions)),state.CanTradeWithDongrim);
             Choice(1,"확인한 길과 소식을 나눈다","물자 소모 없이 대화 · 새로운 길과 다음 약속 기록",1220,()=>Apply(state.ResolveDongrimMeeting(false,definitions)));
         }
@@ -718,11 +742,19 @@ namespace VanishingDays
             if(!state.Story.HasHeardSPBroadcast) Label("생존 기록",48,462,804,60,36,Paper);
             if(state.Story.HasHeardSPBroadcast) Button("정보 카드 · 라디오 전문",48,462,804,60,()=>{page="radio";Render();}); Label("작성자 : "+state.PlayerNickname,48,540,420,48,26,Muted);
             if(state.ErasureNewsEnabled) Button("전국 소멸 지도",490,530,362,58,()=>{page="erasure";selectedErasureDay=0;Render();});
-            Button("날짜별 일기",48,606,252,52,()=>{page="diaries";selectedDiaryDay=0;Render();});
+            Button("날짜별 일기",48,606,252,52,()=>{diaryReturn="journal";page="diaries";selectedDiaryDay=0;Render();});
             Button("아침 수신함",324,606,252,52,()=>{page="morning";selectedMorningDay=0;Render();},state.CanUseRadio && state.MorningIssues.Count>0);
             Button("동행 약속",600,606,252,52,()=>{page="companion";message="";Render();},state.CompanionAvailable);
-            ScrollArea("Journal",684,688,out var content); float y=18;
-            foreach(var entry in state.journal) { var text=Label(entry,18,y,768,200,25,Paper,content); float h=Mathf.Max(88,text.preferredHeight+20); text.rectTransform.sizeDelta=new Vector2(768,h); y+=h+28; Box("Entry rule",18,y,768,1,new Color32(61,73,67,255),content); y+=28; }
+            ScrollArea("Journal",684,688,out var content); float y=18; string day=null;
+            // Entries are "yyyy-MM-dd · HH:00  text": one heading per date, then time and text.
+            foreach(var entry in state.journal)
+            {
+                int split=entry.IndexOf(" · "); string date=split>0?entry.Substring(0,split):"", rest=split>0?entry.Substring(split+3):entry;
+                if(date!=day) { day=date; if(y>18) y+=8; Label(date.Replace("-","."),18,y,768,34,23,Amber,content).fontStyle=FontStyle.Bold; y+=44; }
+                string time=rest.Length>7 && rest[2]==':'?rest.Substring(0,5):"", body=time.Length>0?rest.Substring(5).TrimStart():rest;
+                Label(time,18,y+2,90,30,21,Muted,content);
+                var text=Label(body,108,y,678,200,24,Paper,content); float h=Mathf.Max(40,text.preferredHeight+8); text.rectTransform.sizeDelta=new Vector2(678,h); y+=h+18;
+            }
             content.sizeDelta=new Vector2(804,Mathf.Max(688,y));
         }
         void DiaryPage(bool pending)
@@ -730,7 +762,6 @@ namespace VanishingDays
             var entry=pending?state.NextDiary:state.Diaries.Find(x=>x.day==selectedDiaryDay)??state.Diaries.LastOrDefault();
             Label(pending?"하루의 기록":"날짜별 기록지",48,462,804,60,36,Paper);
             Paragraph(entry?.body??"아직 완성된 하루 기록이 없다. 날짜가 바뀌면 오늘 실제로 겪은 일을 정리한다.",542,548,27);
-            Label("본문은 위아래로 스크롤해서 읽을 수 있다",48,1090,804,20,16,Muted);
             ScrollArea("Diary dates",1110,148,out var content); float y=10;
             foreach(var date in state.Diaries)
             {
@@ -738,9 +769,11 @@ namespace VanishingDays
                 Button("기록지 #"+id.ToString("000")+(date.read?" · 확인":" · 새 기록"),12,y,780,48,()=>{selectedDiaryDay=id;page="diaries";Render();},true,date==entry,content); y+=58;
             }
             content.sizeDelta=new Vector2(804,Mathf.Max(148,y));
-            Button(pending?"읽고 계속한다":"확인하고 닫는다",48,1298,390,76,()=>{if(pending && entry!=null) state.ReadDiary(entry.day); else {foreach(var date in state.Diaries)date.read=true;page="journal";} Save();Render();},true,true);
-            Button("기록 모아 보기",462,1298,390,76,()=>{page="diaries";selectedDiaryDay=entry?.day??0;Render();});
+            Button(pending?"읽고 계속한다":"확인하고 닫는다",48,1298,390,76,()=>{if(pending && entry!=null) state.ReadDiary(entry.day); else {foreach(var date in state.Diaries)date.read=true;page=diaryReturn;} Save();Render();},true,true);
+            Button("기록 모아 보기",462,1298,390,76,()=>{if(pending) diaryReturn=page=="diaries"?"journal":page;page="diaries";selectedDiaryDay=entry?.day??0;Render();});
         }
+        // Closing the diary list returns to wherever the reader opened it from.
+        string diaryReturn="journal";
         void MorningPage()
         {
             if(!state.CanUseRadio)
@@ -751,7 +784,6 @@ namespace VanishingDays
             var issue=state.MorningIssues.Find(x=>x.day==selectedMorningDay)??state.MorningIssues.Find(x=>!x.read)??state.MorningIssues.LastOrDefault();
             Label("아침 수신함",48,462,804,60,36,Paper);
             Label(issue==null?"아침 8시에 다음 소식이 준비된다.":"DAY "+issue.day.ToString("00")+" · "+(issue.kind=="first"?"첫 물자 제보":"SP 소식")+" · "+(issue.read?"확인한 방송":"미청취"),48,536,804,44,24,Amber);
-            Label("방송 본문 · 위아래로 스크롤",48,580,804,18,15,Muted);
             Paragraph(issue?.body??"아직 준비된 아침 소식이 없다.",598,492,26);
             ScrollArea("Morning dates",1110,148,out var content); float y=10;
             foreach(var date in state.MorningIssues)
@@ -766,11 +798,10 @@ namespace VanishingDays
         void NeighborPage()
         {
             Label("옆집의 안부",48,462,804,60,36,Paper);
-            string text=state.NeighborStage==0?"찬장에 빌려 쓰던 반찬 그릇이 남아 있다. 옆집 노인에게 돌려드리며 안부를 물을 수 있다.":state.NeighborStage==2?definitions.lifeStory.neighborQuiet:"벽을 두 번 두드리고 두 번 답하는 작은 인사. 오늘의 안부를 물을 수 있다.";
+            string text=state.NeighborMoved?definitions.lateStory.neighborMoved:state.NeighborStage==0?"찬장에 빌려 쓰던 반찬 그릇이 남아 있다. 옆집 노인에게 돌려드리며 안부를 물을 수 있다.":state.NeighborStage==2?definitions.lifeStory.neighborQuiet:"벽을 두 번 두드리고 두 번 답하는 작은 인사. 오늘의 안부를 물을 수 있다.";
             Paragraph(string.IsNullOrEmpty(message)?text:message,550,540,27);
-            Label("대화 본문 · 위아래로 스크롤",48,1092,804,22,17,Muted);
-            Button(state.NeighborStage==0?"그릇을 돌려드린다":"벽을 두 번 두드린다",48,1120,804,70,()=>Apply(state.GreetNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborLastDay<state.day && state.NeighborStage!=2,true);
-            Button("문 앞에서 직접 확인한다 · 1시간",48,1212,804,70,()=>Apply(state.CheckNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborStage==2);
+            Button(state.NeighborStage==0?"그릇을 돌려드린다":"벽을 두 번 두드린다",48,1120,804,70,()=>Apply(state.GreetNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborLastDay<state.day && state.NeighborStage!=2 && !state.NeighborMoved,true);
+            Button("문 앞에서 직접 확인한다 · 1시간",48,1212,804,70,()=>Apply(state.CheckNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborStage==2 && !state.NeighborMoved);
             Button("생활로 돌아가기",48,1310,804,70,()=>{page="home";message="";Render();});
         }
         void CompanionPage()
@@ -778,7 +809,6 @@ namespace VanishingDays
             bool active=state.HasActiveCompanion;
             Label(state.Companion==CompanionStep.Jiwoo?"처음 만난 한지우":active?"함께 돌아오는 사람":"동행 약속",48,462,804,60,36,Paper);
             Paragraph(active?state.CompanionText(definitions):string.IsNullOrEmpty(message)?state.CompanionHint:message,550,570,27);
-            Label("대화 본문 · 위아래로 스크롤",48,1128,804,26,18,Muted);
             if(state.Companion==CompanionStep.Decision)
             {
                 Choice(0,"오늘은 먼저 돌아간다","동림의 상태를 살피고 함께 철수 · 1시간",1160,()=>Apply(state.ContinueCompanion(definitions,true),"companion"));
@@ -821,7 +851,7 @@ namespace VanishingDays
             Label("대한민국 개략도\n표시는 대략적인 위치",610,718,230,64,18,Muted);
             Label(selected==null?"아직 수신된 소식이 없다":"DAY "+selected.day+" · "+state.ErasureHeadline(selected,definitions),48,824,804,40,22,Amber);
             Paragraph(selected==null?"가락시장 사건 이후 날짜가 바뀔 때마다 새로운 소멸 제보를 수신한다. 받은 소식은 이 지도와 일지에 남는다.":state.ErasureBody(selected,definitions),876,202,23);
-            Label("날짜별 기록 · 목록을 위아래로 스크롤",48,1090,804,28,18,Muted);
+            Label("날짜별 기록",48,1090,804,28,18,Muted);
             ScrollArea("Erasure history",1128,244,out var content); float y=12;
             foreach(var report in reports.AsEnumerable().Reverse())
             {
@@ -836,7 +866,7 @@ namespace VanishingDays
             // lastReport holds the search/arrival result that triggered this encounter.
             // The question leads so it is visible without scrolling; the interrupted result follows.
             Hero("누군가 물품을 요구한다"); Paragraph(state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?\n\n"+state.lastReport,790,188);
-            Choice(0,"순순히 내어준다","물품을 내어주고 부상을 피한다",1000,()=>Apply(state.ResolveEncounter(false,definitions)));
+            Choice(0,"순순히 내어준다","소지품 "+definitions.TEMP_BALANCE.dayLoss+"개를 내어준다 · 부상 없음 · 집의 물자는 안전",1000,()=>Apply(state.ResolveEncounter(false,definitions)));
             Choice(1,"뿌리친다","상대는 다치지 않음 · 탈출 실패 시 내가 부상·물품 손실",1112,()=>Apply(state.ResolveEncounter(true,definitions)));
             if(state.HasWeapon(definitions)) Choice(2,"갈긴다","장착한 무기로 공격 · 상대 사망 시 정신력 상한 -25",1224,()=>Apply(state.AttackHungrySurvivor(definitions)));
         }
@@ -853,6 +883,7 @@ namespace VanishingDays
                 int hours=lengths[i], daylight=DaylightHours(hours);
                 Choice(i,hours+"시간 잔다","기상 예정 "+state.CalendarDate.AddHours(state.hour+hours).ToString("MM.dd HH:mm")+(daylight>0?" · 낮 "+daylight+"시간 소모":""),1000+i*112,()=>Apply(state.Rest(definitions,false,hours)));
             }
+            Button("자지 않고 돌아간다",48,1330,804,60,()=>{page="home";message="";Render();});
         }
         int DaylightHours(int hours)
         {
@@ -871,6 +902,36 @@ namespace VanishingDays
                 Label("소지 "+definitions.Item(offer.give).name+" "+definitions.Quantity(offer.give,state.Backpack.Count(offer.give)),66,y+80,768,34,22,Muted);
             }
             Button("거래하지 않고 지나간다",48,1244,804,76,()=>Apply(state.LeaveStreetTrader(definitions)));
+        }
+        // Late story scenes: chapter, title, the scene, then up to three choices stacked above the dock.
+        void LateStoryPage()
+        {
+            var beat=state.CurrentBeat(definitions); var choices=state.LateChoices(definitions);
+            Label(beat.chapter,48,462,804,40,24,Amber);
+            Label(state.LureEndingDue(beat,definitions)?definitions.lateStory.lureTitle:beat.title,48,506,804,60,40,Paper).fontStyle=FontStyle.Bold;
+            float top=1302-112*(choices.Length-1);
+            Paragraph(state.LateBeatText(definitions),584,top-604,26);
+            for(int i=0;i<choices.Length;i++)
+            {
+                int index=i; var choice=choices[i]; bool open=state.CanChooseLate(i,definitions);
+                string detail=choice.detail+(choice.requires=="trust"?" · 신뢰 "+state.LateTrust+" / "+definitions.lateStory.delegateTrust:choice.requires=="meal" && !open?" · 조리한 식사가 없다":"");
+                Choice(i,choice.label,detail,top+112*i,()=>Apply(state.ChooseLateStory(index,definitions)),open);
+            }
+        }
+        void StoryPlacePage(LocationDefinition location)
+        {
+            Hero(location.name,"이야기 장소 · 수색할 물자 없음");
+            Paragraph(string.IsNullOrEmpty(message)?location.description+(state.CurrentBeat(definitions)!=null?"\n\n"+state.LateHint(definitions):""):message,776,214,25,true);
+            Choice(0,"지도를 확인한다","다음 행선지를 정한다",1010,()=>{page="map";message="";Render();});
+            Choice(1,"집으로 돌아간다",location.travelHours+"시간 · 도착 "+state.CalendarDate.AddHours(state.hour+location.travelHours).ToString("HH:mm")+" · 귀갓길에도 조우할 수 있다",1122,()=>RequestDeparture("home"));
+        }
+        void EndingPage()
+        {
+            var ending=definitions.lateStory.Ending(state.EndingId);
+            Hero(ending.title,"엔딩 · "+(string.IsNullOrWhiteSpace(state.PlayerNickname)?state.ProtagonistScriptName:state.PlayerNickname)+"의 기록");
+            Paragraph(state.LateEndingText(definitions),790,300,26,true);
+            Button("남겨진 일지",48,1110,804,84,()=>{Clear(); Header(); Journal(); Button("돌아가기",48,1450,804,70,Render);});
+            Button("새로운 기록",48,1230,804,84,()=>{confirmRestart=true;Render();},true,true);
         }
         void GameOver()
         {
@@ -1094,7 +1155,7 @@ namespace VanishingDays
             yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"PAN-MAP.png"));
             ClickGameButton("지도:store"); yield return null;
             if(page!="location" || root.GetComponentsInChildren<Text>().Any(x=>x.text.Contains("발견 가능:") || x.text.Contains("최초 물량"))) throw new InvalidOperationException("Map target selection/hidden loot failed.");
-            page="home"; Render(); ClickGameButton("잠을 잔다"); yield return null;
+            page="home"; Render(); ClickGameButton("잠자기"); yield return null;
             yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SLEEP-CHOICES.png"));
             state.Vitals.AdjustMental(-50); ClickGameButton("8시간 잔다");
             if(state.SleepHours!=8 || state.Vitals.CurrentMental!=54 || state.Sleepiness!=0) throw new InvalidOperationException("Eight-hour sleep UI failed.");

@@ -60,7 +60,7 @@ namespace VanishingDays
             var face=Panel("Fill",2,2,w-4,h-4,primary?Accent:selected?Selected:Card,rect).GetComponent<Image>();
             var button=rect.gameObject.AddComponent<Button>(); button.targetGraphic=face;
             var colors=button.colors; colors.highlightedColor=new Color(1.2f,1.18f,1.1f); colors.pressedColor=new Color(.8f,.76f,.68f); colors.disabledColor=new Color(.5f,.5f,.5f,.6f); button.colors=colors;
-            var label=Text(caption,28,0,w-56,h,28,primary?OnAccent:Paper,rect); label.alignment=TextAnchor.MiddleLeft; label.fontStyle=FontStyle.Bold;
+            var label=Text(caption,28,0,w-56,h,28,primary?OnAccent:Paper,rect); label.alignment=TextAnchor.MiddleCenter; label.fontStyle=FontStyle.Bold;
             button.onClick.AddListener(()=>click()); return button;
         }
         RawImage AtlasIcon(Texture2D atlas,int index,float x,float y,float size,Transform parent)

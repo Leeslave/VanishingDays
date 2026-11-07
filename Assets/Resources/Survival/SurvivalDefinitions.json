@@ -655,6 +655,28 @@
           "amount": 4
         }
       ]
+    },
+    {
+      "id": "relay_room",
+      "name": "옛 방송 중계실",
+      "mapLabel": "중계실",
+      "description": "구청 뒤편 상가 꼭대기층의 낡은 중계실. 라디오에서 이석현이 살아 있다는 제보가 반복해서 가리키는 곳이다. 챙길 물자는 없다.",
+      "travelHours": 2,
+      "searchHours": 0,
+      "requiresStoryFlag": "relay_room",
+      "storyOnly": true,
+      "loot": []
+    },
+    {
+      "id": "sp_station",
+      "name": "SP 기지국",
+      "mapLabel": "SP 기지국",
+      "description": "매일 아침 소식을 내보내는 SP 기지국. 철문은 열려 있고 송출 표시등만 깜빡인다. 담당자가 응답하지 않은 지 오래됐다고 한다.",
+      "travelHours": 3,
+      "searchHours": 0,
+      "requiresStoryFlag": "sp_station",
+      "storyOnly": true,
+      "loot": []
     }
   ],
   "recipes": [

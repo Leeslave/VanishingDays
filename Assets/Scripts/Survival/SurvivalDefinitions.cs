@@ -12,7 +12,7 @@ namespace VanishingDays
         public ItemStack() { }
         public ItemStack(string itemId,int count) { id=itemId; amount=count; }
     }
-    [Serializable] public class LocationDefinition { public string id, name, description, mapLabel, requiresLocation; public int travelHours, searchHours, requiresSearches, requiresDongrimMeetings; public bool requiresSupplyRumor, storyOnly; public ItemStack[] loot; }
+    [Serializable] public class LocationDefinition { public string id, name, description, mapLabel, requiresLocation, requiresStoryFlag; public int travelHours, searchHours, requiresSearches, requiresDongrimMeetings; public bool requiresSupplyRumor, storyOnly; public ItemStack[] loot; }
     [Serializable] public class DongrimFollowupDefinition { public string secondMeeting, thirdMeeting, patrolMeeting, secondCompleted, thirdCompleted, patrolCompleted; }
     [Serializable] public class RadioBroadcastDefinition { public string id, title, body; }
     [Serializable] public class CrowdBalance { public string status; public int dropBagLoss, keepBagLoss, dropBagDamage, keepBagDamage; }
@@ -48,6 +48,7 @@ namespace VanishingDays
         [NonSerialized] public ErasureNewsCatalog erasureNews;
         [NonSerialized] public LifeStoryDefinition lifeStory;
         [NonSerialized] public CraftingCatalog crafting;
+        [NonSerialized] public LateStoryDefinition lateStory;
         public ItemDefinition Item(string id) => Array.Find(items,x=>x.id==id);
         public LocationDefinition Location(string id) => Array.Find(locations,x=>x.id==id);
         public RecipeDefinition Recipe(string id) => Array.Find(recipes,x=>x.id==id);
@@ -56,11 +57,11 @@ namespace VanishingDays
         {
             var asset=Resources.Load<TextAsset>("Survival/SurvivalDefinitions");
             if(asset==null) throw new InvalidOperationException("Survival definitions missing.");
-            var data=JsonUtility.FromJson<SurvivalDefinitions>(asset.text); data.erasureNews=ErasureNewsCatalog.Load(); data.lifeStory=LifeStoryDefinition.Load(); data.crafting=CraftingCatalog.Load(); data.Validate(); return data;
+            var data=JsonUtility.FromJson<SurvivalDefinitions>(asset.text); data.erasureNews=ErasureNewsCatalog.Load(); data.lifeStory=LifeStoryDefinition.Load(); data.crafting=CraftingCatalog.Load(); data.lateStory=LateStoryDefinition.Load(); data.Validate(); return data;
         }
         public void Validate()
         {
-            if(version!=5 || TEMP_BALANCE==null || locations==null || locations.Length!=8 || items==null || recipes==null || security==null) throw new InvalidOperationException("Invalid v0.5 definitions.");
+            if(version!=5 || TEMP_BALANCE==null || locations==null || locations.Length!=10 || items==null || recipes==null || security==null) throw new InvalidOperationException("Invalid v0.5 definitions.");
             if(erasureNews==null) throw new InvalidOperationException("Missing erasure catalog.");
             if(difficultyRates==null || difficultyRates.Length!=3) throw new InvalidOperationException("Missing difficulty rates.");
             foreach(GameDifficulty difficulty in Enum.GetValues(typeof(GameDifficulty)))
@@ -77,6 +78,9 @@ namespace VanishingDays
             foreach(var place in locations) if((!string.IsNullOrEmpty(place.requiresLocation) && (Location(place.requiresLocation)==null || place.requiresLocation==place.id || place.requiresSearches<1)) || place.requiresDongrimMeetings<0) throw new InvalidOperationException("Invalid location unlock.");
             foreach(var device in security) if(!string.IsNullOrEmpty(device.requiresSecurity) && (Security(device.requiresSecurity)==null || device.requiresSecurity==device.id)) throw new InvalidOperationException("Invalid security prerequisite.");
             if(!Location("supply_site").requiresSupplyRumor || !Location("supply_site").storyOnly || Location("supply_site").loot.Length!=0) throw new InvalidOperationException("Invalid story location.");
+            foreach(var id in new[]{"relay_room","sp_station"}) if(Location(id)==null || !Location(id).storyOnly || Location(id).requiresStoryFlag!=id || Location(id).loot.Length!=0) throw new InvalidOperationException("Invalid late story location: "+id);
+            if(lateStory==null) throw new InvalidOperationException("Missing late story.");
+            lateStory.Validate(this);
             if(radioStory?.firstBroadcast==null || radioStory.generalBroadcast==null || radioStory.TEMP_BALANCE==null || string.IsNullOrWhiteSpace(radioStory.firstBroadcast.body) || string.IsNullOrWhiteSpace(radioStory.generalBroadcast.body) || string.IsNullOrWhiteSpace(radioStory.clueCard) || radioStory.firstBroadcast.id==radioStory.generalBroadcast.id) throw new InvalidOperationException("Missing radio story data.");
             foreach(var text in new[]{radioStory.firstBroadcast.id,radioStory.firstBroadcast.title,radioStory.generalBroadcast.id,radioStory.generalBroadcast.title,radioStory.approach,radioStory.observe,radioStory.night,radioStory.panic,radioStory.rescue,radioStory.disappearance,radioStory.introduction,radioStory.completed}) if(string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("Incomplete radio/crowd script.");
             var crowd=radioStory.TEMP_BALANCE;

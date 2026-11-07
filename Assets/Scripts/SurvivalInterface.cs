@@ -17,6 +17,8 @@ namespace VanishingDays
         void ArtIcon(int index,float x,float y,float w,float h,Transform parent=null) { AtlasPicture(x,y,w,h,IconRect(index),parent); }
         int ButtonIcon(string text)
         {
+            // Navigation back to a screen and plain storing carry no pictogram; one icon per verb keeps them distinct.
+            if(text.Contains("생활로") || text.Contains("생활 화면") || text=="보관" || text=="전체 보관") return -1;
             if(text.Contains("식수") || text.Contains("마시") || text.Contains("물을") || text.Contains("용수") || text.Contains("정수")) return 0;
             if(text.Contains("잠") || text.Contains("잔다") || text.Contains("수면") || text.Contains("머무른다")) return 1;
             if(text.Contains("물품") || text.Contains("챙기") || text.Contains("보관")) return 2;
@@ -31,7 +33,7 @@ namespace VanishingDays
         int ItemIcon(string id) => id.Contains("water")?0:definitions.Item(id).injuriesTreated>0?6:definitions.Item(id).consumable || id=="rice"?7:definitions.Item(id).strength>0 || id=="wood" || id=="tools" || id=="scrap" || id=="tape"?5:2;
         void SurvivalWarning()
         {
-            if(state.IsGameOver) return;
+            if(state.IsGameOver || state.HasEnded) return;
             bool water=state.NeedsWaterWarning, sleep=state.NeedsSleepWarning, ready=state.CollectorReady, hungry=Hungry, home=state.CurrentLocation=="home";
             if(!water && !sleep && !ready && !hungry) return;
             string warning=(water?(state.AccessibleWater==0?"식수 없음 · 물 확보 필요":"갈증 경고 · 물을 마셔야 한다"):"")+(water && sleep?"  /  ":"")+(sleep?"수면 부족 · 졸림 "+state.Sleepiness:"");
@@ -175,7 +177,7 @@ namespace VanishingDays
             ClickGameButton("확인");ClickGameButton("끓이기 · 정수");ClickGameButton("물을 끓인다");ClickGameButton("마시기");ClickGameButton("지금 물을 마신다");
             if(state.HomeStorage.Count("water")!=1 || state.Thirst!=0 || state.HydrationHours!=0 || state.NeedsWaterWarning)throw new System.Exception("Boil/drink UI failed.");
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir,"03-WATER-ACCESS.png"));yield return null;
-            ClickGameButton("생활");ClickGameButton("잠을 잔다");ClickGameButton("6시간 잔다");
+            ClickGameButton("생활");ClickGameButton("잠자기");ClickGameButton("6시간 잔다");
             if(state.NeedsSleepWarning)throw new System.Exception("Sleep warning did not clear through UI.");
             if(!store.TryLoad(out var loaded,out _) || loaded.Thirst!=0 || loaded.Sleepiness!=0)throw new System.Exception("New actions did not save.");
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir,"04-RECOVERED.png"));yield return null;
