@@ -74,6 +74,7 @@ namespace VanishingDays
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdTutorial")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/TutorialVerification/session.json"),definitions); StartCoroutine(SmokeTutorial()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdSupply")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/WaterAccessVerification/session.json"),definitions); StartCoroutine(SmokeWaterAccess()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdCraft")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/CraftingVerification/session.json"),definitions); StartCoroutine(SmokeCrafting()); return; }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdDialogue")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DialogueVerification/session.json"),definitions); StartCoroutine(SmokeDialogue()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdLife")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/DailyLifeVerification/session.json"),definitions); StartCoroutine(SmokeDailyLife()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdThirst")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/ThirstVerification/session.json"),definitions); StartCoroutine(SmokeThirst()); return; }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"-vdWater")>=0) { store=new SessionSaveStore(Path.GetFullPath("Builds/WaterVerification/session.json"),definitions); StartCoroutine(SmokeWater()); return; }
@@ -95,6 +96,7 @@ namespace VanishingDays
             if(keyboard.digit1Key.wasPressedThisFrame) shortcuts[0]?.Invoke();
             else if(keyboard.digit2Key.wasPressedThisFrame) shortcuts[1]?.Invoke();
             else if(keyboard.digit3Key.wasPressedThisFrame) shortcuts[2]?.Invoke();
+            else if(keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) sceneAdvance?.Invoke();
         }
         RectTransform Rect(string name,Transform parent,float x,float y,float w,float h)
         {
@@ -193,6 +195,8 @@ namespace VanishingDays
         // journal: the diary-page treatment for what the survivor writes down about the current place.
         void Paragraph(string text,float y,float height,int size=27,bool journal=false)
         {
+            // Results and endings that quote people or broadcasts get the speaker gutter of the journal page.
+            if(journal) { var blocks=Blocks(text); if(blocks.Exists(x=>x.Kind==ScriptBlockKind.Speech || x.IsTransmission)) { Transcript(blocks,y,height,true,-1,false,size); return; } }
             var area=ScrollArea("Scrollable text",y,height,journal?JournalPaper:Panel,out var content);
             var label=Label(text,24,16,756,height-32,size,journal?JournalInk:Paper,content); label.lineSpacing=journal?1.3f:1.18f;
             // Dark glyphs on the light page blend thin in linear color space; bold keeps them legible.
@@ -216,7 +220,7 @@ namespace VanishingDays
             var events=EventSystem.current;
             if(events!=null)events.SetSelectedGameObject(null);
             foreach(Transform child in root) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            shortcuts=new Action[3]; Box("Background",0,0,900,1600,Ink);
+            shortcuts=new Action[3]; sceneAdvance=null; Box("Background",0,0,900,1600,Ink);
         }
         void Render()
         {
@@ -537,7 +541,7 @@ namespace VanishingDays
             var broadcast=script.firstBroadcast;
             Label("라디오 수신 기록",48,462,804,56,36,Paper);
             Label(broadcast.title,48,540,804,54,25,Amber);
-            Paragraph(broadcast.body,610,460,27);
+            RadioText(Blocks(broadcast.body),610,460,true,"SP 기지국 · 수신 기록");
             Button("정보 카드 · 가락시장 방송 전문 다시 읽기",48,1090,804,64,()=>{page="radio";Render();});
             Label(script.clueCard,64,1160,772,66,21,Muted);
             Button("전국 소멸 지도·수신 기록",48,1236,804,52,()=>{page="erasure";selectedErasureDay=0;Render();},state.ErasureNewsEnabled);
@@ -551,7 +555,7 @@ namespace VanishingDays
             Label(definitions.Location("supply_site").name,48,532,804,64,36,Paper);
             bool completed=state.Story.CrowdIncidentResolved, night=state.IsNight(definitions.TEMP_BALANCE);
             string text=completed?script.completed:night?script.night:state.Crowd.Step==CrowdStoryStep.Observing?script.observe:script.approach;
-            Paragraph(text,622,350,28);
+            if(!SceneText(text,622,984)) return;
             bool approach=state.CanApproachCrowd(definitions);
             Choice(0,"한발 물러나 상황을 살핀다","입구와 인파의 움직임을 확인한다",1000,()=>Apply(state.ObserveSupplySite(definitions)),approach);
             Choice(1,"배분 구역 가까이 간다",completed?"이미 현장을 확인했다":night?"현장 접근은 낮에 가능하다":"사람들이 모인 입구로 접근한다",1112,()=>Apply(state.ApproachCrowd(definitions)),approach);
@@ -568,7 +572,7 @@ namespace VanishingDays
                 default:title="최동림"; body=script.introduction; break;
             }
             Label("현장 기록",48,462,804,48,26,Muted); Label(title,48,532,804,64,40,Paper);
-            Paragraph(state.Script(body),622,state.Crowd.Step==CrowdStoryStep.Panic?430:550,28);
+            if(!SceneText(state.Script(body),622,state.Crowd.Step==CrowdStoryStep.Panic?1084:state.Crowd.Step==CrowdStoryStep.Rescue?1176:1294)) return;
             if(state.Crowd.Step==CrowdStoryStep.Panic)
             {
                 Choice(0,"가방을 놓고 몸을 틀어 빠져나온다","소지품 일부를 잃지만 부상을 피한다",1100,()=>Apply(state.ChooseCrowdResponse(true,definitions)));
@@ -733,7 +737,7 @@ namespace VanishingDays
         void DongrimMeetingPage()
         {
             Label("최동림 · "+(state.TotalDongrimMeetings+1)+"번째 만남",48,462,804,60,36,Paper);
-            Paragraph(state.DongrimDialogue(definitions),550,500,27);
+            if(!SceneText(state.DongrimDialogue(definitions),550,1084)) return;
             Choice(0,"식량을 건네고 붕대를 받는다","소지한 참치캔·스팸·라면 중 1개 ↔ 붕대 1개",1100,()=>Apply(state.ResolveDongrimMeeting(true,definitions)),state.CanTradeWithDongrim);
             Choice(1,"확인한 길과 소식을 나눈다","물자 소모 없이 대화 · 새로운 길과 다음 약속 기록",1220,()=>Apply(state.ResolveDongrimMeeting(false,definitions)));
         }
@@ -784,7 +788,8 @@ namespace VanishingDays
             var issue=state.MorningIssues.Find(x=>x.day==selectedMorningDay)??state.MorningIssues.Find(x=>!x.read)??state.MorningIssues.LastOrDefault();
             Label("아침 수신함",48,462,804,60,36,Paper);
             Label(issue==null?"아침 8시에 다음 소식이 준비된다.":"DAY "+issue.day.ToString("00")+" · "+(issue.kind=="first"?"첫 물자 제보":"SP 소식")+" · "+(issue.read?"확인한 방송":"미청취"),48,536,804,44,24,Amber);
-            Paragraph(issue?.body??"아직 준비된 아침 소식이 없다.",598,492,26);
+            if(issue==null) Paragraph("아직 준비된 아침 소식이 없다.",598,492,26);
+            else RadioText(Blocks(issue.body),598,492,true,"DAY "+issue.day.ToString("00")+" · 08:00 수신");
             ScrollArea("Morning dates",1110,148,out var content); float y=10;
             foreach(var date in state.MorningIssues)
             {
@@ -799,7 +804,7 @@ namespace VanishingDays
         {
             Label("옆집의 안부",48,462,804,60,36,Paper);
             string text=state.NeighborMoved?definitions.lateStory.neighborMoved:state.NeighborStage==0?"찬장에 빌려 쓰던 반찬 그릇이 남아 있다. 옆집 노인에게 돌려드리며 안부를 물을 수 있다.":state.NeighborStage==2?definitions.lifeStory.neighborQuiet:"벽을 두 번 두드리고 두 번 답하는 작은 인사. 오늘의 안부를 물을 수 있다.";
-            Paragraph(string.IsNullOrEmpty(message)?text:message,550,540,27);
+            if(!SceneText(string.IsNullOrEmpty(message)?text:message,550,1104)) return;
             Button(state.NeighborStage==0?"그릇을 돌려드린다":"벽을 두 번 두드린다",48,1120,804,70,()=>Apply(state.GreetNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborLastDay<state.day && state.NeighborStage!=2 && !state.NeighborMoved,true);
             Button("문 앞에서 직접 확인한다 · 1시간",48,1212,804,70,()=>Apply(state.CheckNeighbor(definitions),"neighbor"),state.CanAct && state.CurrentLocation=="home" && state.NeighborStage==2 && !state.NeighborMoved);
             Button("생활로 돌아가기",48,1310,804,70,()=>{page="home";message="";Render();});
@@ -808,7 +813,8 @@ namespace VanishingDays
         {
             bool active=state.HasActiveCompanion;
             Label(state.Companion==CompanionStep.Jiwoo?"처음 만난 한지우":active?"함께 돌아오는 사람":"동행 약속",48,462,804,60,36,Paper);
-            Paragraph(active?state.CompanionText(definitions):string.IsNullOrEmpty(message)?state.CompanionHint:message,550,570,27);
+            if(active) { if(!SceneText(state.CompanionText(definitions),550,state.Companion==CompanionStep.Decision?1144:1282)) return; }
+            else Paragraph(string.IsNullOrEmpty(message)?state.CompanionHint:message,550,570,27);
             if(state.Companion==CompanionStep.Decision)
             {
                 Choice(0,"오늘은 먼저 돌아간다","동림의 상태를 살피고 함께 철수 · 1시간",1160,()=>Apply(state.ContinueCompanion(definitions,true),"companion"));
@@ -827,7 +833,7 @@ namespace VanishingDays
             var report=state.NextUnreadErasureNews;
             Label("새날의 소멸 속보",48,462,804,60,36,Paper);
             Label(new DateTime(2031,2,26).AddDays(report.day-1).ToString("yyyy.MM.dd")+" · DAY "+report.day+" · SP 기지국",48,540,804,48,24,Amber);
-            Paragraph(state.ErasureBody(report,definitions),610,530,27);
+            RadioText(Blocks(state.ErasureBody(report,definitions)),610,530,true,"SP 일일 수신");
             Choice(0,"확인하고 계속한다","오늘의 수신 기록을 일지에 남긴다",1170,()=>AcknowledgeErasure(false));
             Choice(1,"전국 소멸 지도를 본다","소멸 제보 위치와 날짜별 수신 기록",1280,()=>AcknowledgeErasure(true));
         }
@@ -850,7 +856,8 @@ namespace VanishingDays
             Label("지방\n"+places.Count(x=>x.kind=="town")+"개 읍",640,580,190,96,24,Muted);
             Label("대한민국 개략도\n표시는 대략적인 위치",610,718,230,64,18,Muted);
             Label(selected==null?"아직 수신된 소식이 없다":"DAY "+selected.day+" · "+state.ErasureHeadline(selected,definitions),48,824,804,40,22,Amber);
-            Paragraph(selected==null?"가락시장 사건 이후 날짜가 바뀔 때마다 새로운 소멸 제보를 수신한다. 받은 소식은 이 지도와 일지에 남는다.":state.ErasureBody(selected,definitions),876,202,23);
+            if(selected==null) Paragraph("가락시장 사건 이후 날짜가 바뀔 때마다 새로운 소멸 제보를 수신한다. 받은 소식은 이 지도와 일지에 남는다.",876,202,23);
+            else RadioText(Blocks(state.ErasureBody(selected,definitions)),876,202,true,null,22);
             Label("날짜별 기록",48,1090,804,28,18,Muted);
             ScrollArea("Erasure history",1128,244,out var content); float y=12;
             foreach(var report in reports.AsEnumerable().Reverse())
@@ -910,7 +917,7 @@ namespace VanishingDays
             Label(beat.chapter,48,462,804,40,24,Amber);
             Label(state.LureEndingDue(beat,definitions)?definitions.lateStory.lureTitle:beat.title,48,506,804,60,40,Paper).fontStyle=FontStyle.Bold;
             float top=1302-112*(choices.Length-1);
-            Paragraph(state.LateBeatText(definitions),584,top-604,26);
+            if(!SceneText(state.LateBeatText(definitions),584,top-4)) return;
             for(int i=0;i<choices.Length;i++)
             {
                 int index=i; var choice=choices[i]; bool open=state.CanChooseLate(i,definitions);
@@ -1478,8 +1485,15 @@ namespace VanishingDays
         }
         void ClickGameButton(string caption,int index=0)
         {
-            foreach(var button in root.GetComponentsInChildren<Button>())
-                if(button.interactable && button.gameObject.name.Contains(caption)) { if(index--==0) { button.onClick.Invoke(); return; } }
+            for(int attempt=0;attempt<2;attempt++)
+            {
+                int skip=index;
+                foreach(var button in root.GetComponentsInChildren<Button>())
+                    if(button.interactable && button.gameObject.name.Contains(caption)) { if(skip--==0) { button.onClick.Invoke(); return; } }
+                // A story scene keeps its choices hidden until it is read; the checks read it to the end at once.
+                if(sceneAdvance==null) break;
+                SkipScene();
+            }
             throw new InvalidOperationException("Game button missing: "+caption);
         }
 #endif

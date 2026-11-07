@@ -172,7 +172,9 @@ namespace VanishingDays
             yield return null;yield return new WaitForEndOfFrame();CaptureQa(System.IO.Path.Combine(folder,"05-FACILITIES.png"));yield return null;
             state.Story.HasHeardSPBroadcast=true;state.Story.SupplyRumorUnlocked=true;state.LastRadioBroadcastId=definitions.radioStory.generalBroadcast.id;
             page="journal";Render();ClickGameButton("정보 카드 · 라디오 전문");
-            if(!root.GetComponentsInChildren<UnityEngine.UI.Text>().Any(x=>x.text==definitions.radioStory.firstBroadcast.body))throw new Exception("First broadcast was lost after another broadcast.");
+            // The receiver log lays a broadcast out line by line, so every line of the first broadcast must be on screen.
+            var shown=root.GetComponentsInChildren<UnityEngine.UI.Text>().Select(x=>x.text).ToList();
+            if(!ScriptBlocks.Parse(definitions.radioStory.firstBroadcast.body).Where(x=>x.Kind!=ScriptBlockKind.Noise).All(b=>shown.Contains(b.Text)))throw new Exception("First broadcast was lost after another broadcast.");
             yield return null;yield return new WaitForEndOfFrame();CaptureQa(System.IO.Path.Combine(folder,"06-RADIO-ARCHIVE.png"));yield return null;
             Debug.Log("VD_QA_UI_OK: crafting filters, recipe uses, preparation without time cost, carried-only inventory, eight-hour sleep, facility art and permanent radio transcript.");Application.Quit();
         }
