@@ -43,7 +43,7 @@ namespace VanishingDays.Editor
             s=WithRadio(data); s.ListenRadio(data); s.hour=data.TEMP_BALANCE.nightStarts-data.Location("supply_site").travelHours; s.Travel("supply_site",data,()=>1);
             check(s.IsNight(data.TEMP_BALANCE) && !s.CanApproachCrowd(data),"Arrival at dusk incorrectly allowed crowd.");
             hour=s.hour; s.ApproachCrowd(data); s.ObserveSupplySite(data); check(s.hour==hour && !s.Story.CrowdIncidentStarted,"Night approach changed incident/time.");
-            s.Travel("home",data,()=>1); s.hour=4; s.Travel("supply_site",data,()=>1); check(!s.IsNight(data.TEMP_BALANCE) && s.CanApproachCrowd(data),"Arrival at dawn not allowed.");
+            s.Travel("home",data,()=>1); s.hour=data.TEMP_BALANCE.dayStarts-data.Location("supply_site").travelHours; s.Travel("supply_site",data,()=>1); check(!s.IsNight(data.TEMP_BALANCE) && s.CanApproachCrowd(data),"Arrival at dawn not allowed.");
             foreach(bool drop in new[]{true,false})
             {
                 s=AtSite(data); s.Backpack.Add("tuna",3); hour=s.hour; rng=s.RandomState;
@@ -95,11 +95,11 @@ namespace VanishingDays.Editor
                 if(!s.Story.HasMetDongrim || s.Story.JoinedLiberationFront) throw new Exception("Restored meeting completion failed.");
                 if(!s.journal.Exists(x=>x.Contains("저는 기록자닉네임이라고 합니다"))) throw new Exception("Meeting did not use the restored nickname.");
             }
-            var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter" || x.id=="relay_room" || x.id=="sp_station" || x.id=="construction_site" || x.id=="seongnae_bridge"); legacy.Crowd=null;
+            var legacy=WithRadio(data); legacy.schemaVersion=3; legacy.Locations.RemoveAll(x=>x.id!="home" && x.id!="store" && x.id!="empty_house" && x.id!="school"); legacy.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(legacy));
             if(!saves.TryLoad(out var migrated,out _) || migrated.schemaVersion!=13 || migrated.Locations.Count!=data.locations.Length || migrated.Story.SupplyRumorUnlocked || migrated.HomeStorage.Count("bandage")!=3 || !migrated.Story.HasRadio) throw new Exception("v3 migration failed.");
             migrated.ListenRadio(data); saves.Save(migrated); if(!saves.TryLoad(out migrated,out _) || !migrated.Story.SupplyRumorUnlocked) throw new Exception("Migrated radio unlock failed.");
-            var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id=="supply_site" || x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter" || x.id=="relay_room" || x.id=="sp_station" || x.id=="construction_site" || x.id=="seongnae_bridge"); preRadio.Crowd=null;
+            var preRadio=SurvivalState.NewGame(GameDifficulty.HARD,data,99); preRadio.schemaVersion=3; preRadio.Locations.RemoveAll(x=>x.id!="home" && x.id!="store" && x.id!="empty_house" && x.id!="school"); preRadio.Crowd=null;
             File.WriteAllText(path,JsonUtility.ToJson(preRadio));
             if(!saves.TryLoad(out var beforeRadio,out _) || beforeRadio.Story.HasRadio || beforeRadio.Story.SupplyRumorUnlocked || beforeRadio.CurrentLocation!="home" || beforeRadio.HomeStorage.Count("bandage")!=1) throw new Exception("Pre-radio legacy migration gave story/items.");
             legacy.Story.HasHeardSPBroadcast=true; legacy.Story.CompleteDongrimRescue(true);

@@ -8,108 +8,246 @@ namespace VanishingDays.Editor
 {
     public static class LateStoryChecks
     {
-        // The first companion expedition finished, back at home: the point where the late story begins.
+        static void Check(bool ok,string message)
+        {
+            if(!ok) throw new Exception("Late story: "+message);
+        }
         static SurvivalState AfterExpedition(SurvivalDefinitions data)
         {
             var s=ErasureNewsChecks.AfterGarak(data);
             s.UnlockedLocations.AddRange(new[]{"empty_house","school"});
-            s.Travel("home",data,()=>1); s.day=2; s.hour=8; s.Travel("empty_house",data,()=>1); s.ResolveDongrimMeeting(false,data);
-            s.Travel("home",data,()=>1); s.day=3; s.hour=8; s.Travel("school",data,()=>1); s.ResolveDongrimMeeting(false,data);
-            s.day=4; s.hour=8; s.MeetCompanion(data); s.ContinueCompanion(data); s.Travel("home",data,()=>1);
-            s.day=s.CompanionReadyDay; s.hour=8; s.Travel("school",data,()=>1); if(s.PendingDongrimMeeting) s.ResolveDongrimMeeting(false,data);
+            Go(s,"home",data); s.day=2; Go(s,"empty_house",data);
+            Go(s,"home",data); s.day=3; Go(s,"school",data);
+            s.day=4; s.hour=8; s.MeetCompanion(data); s.ContinueCompanion(data); Go(s,"home",data);
+            s.day=s.CompanionReadyDay; Go(s,"school",data);
             s.MeetCompanion(data); s.ContinueCompanion(data); s.ContinueCompanion(data,true); s.ContinueCompanion(data);
-            s.Travel("home",data,()=>1); return s;
+            Go(s,"home",data);
+            return s;
         }
-        // Moves to the current scene's place on its day, in daylight, and opens the scene.
-        static void Reach(SurvivalState s,SurvivalDefinitions data)
+        static void ResetNeeds(SurvivalState s)
+        {
+            s.Vitals.Hunger=0; s.Thirst=0; s.HydrationHours=0; s.Sleepiness=0;
+            s.Backpack.Add("water",2);
+        }
+        static void Go(SurvivalState s,string place,SurvivalDefinitions data)
+        {
+            ResetNeeds(s);
+            s.hour=8;
+            if(s.CurrentLocation!=place) s.Travel(place,data,()=>1);
+            if(s.PendingDongrimMeeting) s.ResolveDongrimMeeting(false,data);
+            Check(s.CurrentLocation==place && !s.IsGameOver,"could not reach "+place);
+        }
+        static void Open(SurvivalState s,SurvivalDefinitions data)
         {
             var beat=s.CurrentBeat(data);
-            s.Vitals.Hunger=0; s.Thirst=0; s.HydrationHours=0; s.Sleepiness=0;
-            if(s.day<s.LateReadyDay) s.day=s.LateReadyDay;
-            s.hour=9;
-            if(s.CurrentLocation!=beat.location) s.Travel(beat.location,data,()=>1);
-            if(s.PendingDongrimMeeting) s.ResolveDongrimMeeting(false,data);
-            if(!s.LateScenePending) s.TryBeginLateStory(data);
+            s.day=Math.Max(s.day,s.LateReadyDay);
+            Go(s,beat.location,data);
+            if(!s.LateScenePending && !s.BrokenPathScenePending) s.TryBeginLateStory(data);
         }
-        static void Play(SurvivalState s,SurvivalDefinitions data,params int[] picks)
+        static void ChooseBeat(SurvivalState s,SurvivalDefinitions data,int index=0)
         {
-            foreach(int pick in picks)
+            Open(s,data);
+            string id=s.CurrentBeat(data).id;
+            if(id=="rumor_table" && index==0) s.Backpack.Add("rice_meal",1);
+            Check(s.CanChooseLate(index,data),"choice unavailable at "+id);
+            s.ChooseLateStory(index,data);
+            Check(!s.LateScenePending,"choice not completed at "+id);
+        }
+        static void ChooseBroken(SurvivalState s,string action,SurvivalDefinitions data)
+        {
+            int index=Array.FindIndex(s.CurrentBrokenPathScene(data).choices,x=>x.action==action);
+            Check(index>=0,"missing action "+action);
+            s.ChooseBrokenPath(index,data);
+        }
+        static void FinishBroken(SurvivalState s,string route,SurvivalDefinitions data)
+        {
+            ChooseBroken(s,"core_"+route[0],data);
+            ChooseBroken(s,"field",data);
+            Go(s,"seongnae_bridge",data);
+            s.SurveyBrokenPath("pier",data);
+            s.ChooseBrokenPathMethod("ladder",data);
+            int trips=0;
+            while(s.BrokenPath.Site.Count("ladder")<2 && trips++<2)
             {
-                Reach(s,data);
-                if(!s.LateScenePending) throw new Exception("Scene did not open: "+s.CurrentBeat(data)?.id);
-                if(s.CurrentBeat(data).id=="rumor_table" && pick==0) s.Backpack.Add("rice_meal",1);
-                string id=s.CurrentBeat(data).id; s.ChooseLateStory(pick,data);
-                if(s.LateScenePending) throw new Exception("Choice did not resolve: "+id);
+                Go(s,"construction_site",data);
+                for(int i=0;i<Math.Min(2,s.CarryCapacity);i++) s.TakeYardMaterial("ladder",data);
+                Go(s,"seongnae_bridge",data);
+                s.DropAtBridge(data);
             }
+            Check(s.CanBuildBrokenPath(data),"normal path cannot build the ladder bridge");
+            s.BuildBrokenPath(data);
+            if(route[0]=='A') ChooseBroken(s,route,data);
+            while(s.BrokenPathScenePending) s.ChooseBrokenPath(0,data);
+            Check(s.BrokenPath.Stage==4 && s.CurrentAct(data)==4,"act 4 not unlocked after rescue");
+        }
+        static void Dawn(SurvivalState s,SurvivalDefinitions data)
+        {
+            int hours=(8-s.hour+24)%24;
+            if(hours==0) hours=24;
+            for(int left=hours;left>0;left-=4)
+            {
+                ResetNeeds(s);
+                s.AdvanceTime(Math.Min(4,left),data);
+            }
+        }
+        static void Broadcast(SurvivalState s,SurvivalDefinitions data,int iteration)
+        {
+            var target=iteration==0?"pharmacy":"shelter";
+            s.QueueRelay(new RelayDecision{node=target,action="announce"});
+            s.QueueRelay(new RelayDecision{node="relay_room",action="staff",option="jiwoo"});
+            Check(s.CanSubmitRelay,"daily decisions unavailable");
+            s.SubmitRelay(data);
+            Check(!s.CanOperateRelay && s.Relay.plan.Count==0,"dawn budget could be reused");
         }
         [MenuItem("Vanishing Days/Validate late story and endings")]
         public static void Validate()
         {
-            var data=SurvivalDefinitions.Load(); int checks=0; int hunger=data.TEMP_BALANCE.hungerPerHour; data.TEMP_BALANCE.hungerPerHour=0;
-            Action<bool,string> check=(ok,why)=>{checks++;if(!ok)throw new Exception(why);};
-            string path=Path.GetFullPath("Builds/Validation/late-story-save.json"); var saves=new SessionSaveStore(path,data);
-            Action clean=()=>{foreach(string file in new[]{path,path+".bak",path+".tmp"})if(File.Exists(file))File.Delete(file);}; clean();
-            try
+            var data=SurvivalDefinitions.Load();
+            data.TEMP_BALANCE.hungerPerHour=0;
+            var path=Path.GetFullPath("Builds/Validation/late-story-save.json");
+            var saves=new SessionSaveStore(path,data);
+            var resultSaves=new SessionSaveStore(Path.Combine(Path.GetDirectoryName(path),"late-story-result-save.json"),data);
+            var fresh=SurvivalState.NewGame(GameDifficulty.NORMAL,data,7);
+            Check(fresh.CurrentAct(data)==1 && !fresh.TryBeginLateStory(data),"first act begins in survival");
+
+            var s=AfterExpedition(data);
+            Check(s.CurrentAct(data)==2 && s.CurrentBeat(data)?.id=="yeongsuk_soup","second act did not queue after the expedition");
+            Open(s,data);
+            saves.Save(s);
+            Check(saves.TryLoad(out var restored,out _) && restored.LateScenePending && restored.CurrentBeat(data).id=="yeongsuk_soup","pending scene not restored");
+            s=restored;
+            s.ChooseLateStory(0,data);
+            ChooseBeat(s,data,2);
+            Check(s.IsLocationUnlocked("construction_site",data) && !s.IsLocationUnlocked("seongnae_bridge",data),"construction site should preview in act 2");
+            s.PrepareCommunityRequests(data);
+            var request=s.CommunityRequests.Find(x=>x.id=="soup_check");
+            Check(request!=null && s.CommunityRequests.Count<=2,"community requests not generated");
+            Go(s,"soup_house",data);
+            int trust=s.LateTrust, water=s.Backpack.Count("water");
+            s.CompleteCommunityRequest(request,data);
+            Check(s.Backpack.Count("water")==water+2,"community reward was not delivered to the backpack");
+            s.CompleteCommunityRequest(request,data);
+            Check(s.Backpack.Count("water")==water+2 && s.LateFlags.Contains("survey_issued:soup_check"),"one-time survey paid twice or can reappear");
+            Check(s.LateTrust==trust+1 && !s.IsLocationErased("soup_house"),"request reward or erasure before departure");
+            Go(s,"home",data);
+            Check(s.IsLocationErased("soup_house") && !s.IsLocationUnlocked("soup_house",data),"erasure not committed after departure");
+            while(s.CurrentBeat(data).id!="post_vanished") ChooseBeat(s,data);
+            Open(s,data);
+            var oldPost=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+            oldPost.LateStoryRevision=1;
+            oldPost.LateStep=14;
+            File.WriteAllText(path,JsonUtility.ToJson(oldPost));
+            Check(saves.TryLoad(out restored,out _) && restored.CurrentBeat(data).id=="post_vanished" && restored.LateScenePending,"old pending post scene did not resume");
+            restored.ChooseLateStory(0,data);
+            Check(restored.CurrentBeat(data).id=="core_choice" && restored.IsLocationErased("river_post"),"old save repeated the false broadcast or lost the erasure");
+            s.ChooseLateStory(0,data);
+            Check(s.CurrentBeat(data).id=="false_report" && s.IsLocationErased("river_post"),"the post did not disappear before the false broadcast");
+            while(s.CurrentBeat(data).id!="core_choice") ChooseBeat(s,data);
+            Check(s.day<18 && s.CurrentAct(data)==3 && s.IsLocationErased("river_post"),"act 3 calendar gate or missing erasure");
+            Open(s,data);
+            Check(s.BrokenPathScenePending && !s.LateScenePending && s.CurrentLocation=="relay_room","normal progression did not open the actual core choice");
+            saves.Save(s);
+            Check(saves.TryLoad(out restored,out _) && restored.BrokenPathScenePending && restored.IsLocationErased("river_post"),"act boundary or erasure lost on load");
+
+            foreach(string route in new[]{"A1","A2","B"})
             {
-                var fresh=SurvivalState.NewGame(GameDifficulty.NORMAL,data,7);
-                check(fresh.CurrentBeat(data)==null && !fresh.TryBeginLateStory(data) && fresh.Locations.Count==data.locations.Length,"Late story started before the first expedition.");
-                check(!fresh.IsLocationUnlocked("relay_room",data) && !fresh.IsLocationUnlocked("sp_station",data),"Story places visible from the start.");
-
-                var s=AfterExpedition(data);
-                check(s.Companion==CompanionStep.Completed && s.CurrentBeat(data)?.id=="absent_share" && s.LateReadyDay==s.day+1,"Late story did not queue after the expedition.");
-                s.hour=9; s.Travel("shelter",data,()=>1); if(s.PendingDongrimMeeting) s.ResolveDongrimMeeting(false,data);
-                check(!s.LateScenePending,"Scene opened before its day.");
-                Reach(s,data);
-                check(s.LateScenePending && !s.CanAct,"Daytime arrival did not open the first scene.");
-                var copy=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s)); copy.hour=22; copy.LateScenePending=false;
-                check(!copy.TryBeginLateStory(data),"Daytime scene opened at night.");
-                saves.Save(s); check(saves.TryLoad(out var restored,out _) && restored.LateScenePending && restored.LateBeatText(data)==s.LateBeatText(data),"Pending scene not restored.");
-                restored.CurrentLocation="home"; restored.AwayFromHome=false; check(!TrySave(saves,restored),"Scene pending away from its place was saved.");
-                int tuna=s.Backpack.Count("tuna"); s.ChooseLateStory(2,data);
-                check(s.Backpack.Count("tuna")==tuna+1 && s.Isolation==1 && s.LateStep==1 && s.LateReadyDay==s.day+2 && s.CanAct,"Choice reward/weight/next day wrong.");
-                check(s.ChooseLateStory(0,data)=="지금은 그 선택을 할 수 없다." && s.LateStep==1,"Resolved scene could be chosen again.");
-                s.day=s.LateReadyDay; s.hour=9; s.TryBeginLateStory(data);
-                check(s.LateScenePending && !s.CanChooseLate(0,data) && s.CanChooseLate(1,data),"Meal requirement not enforced at the shared table.");
-
-                // Path A: care throughout, then the direct visit.
-                s=AfterExpedition(data); s.NeighborStage=1;
-                Play(s,data,0,0,0,0,0,0,0,0,0,0,0,0);
-                check(s.LateFlags.Contains("warned") && s.Care>=10 && s.LateTrust>=data.lateStory.delegateTrust && s.Lure==0,"Care path weights wrong.");
-                check(s.NeighborMoved && s.IsLocationUnlocked("pharmacy",data) && s.IsLocationUnlocked("relay_room",data) && s.IsLocationUnlocked("sp_station",data),"Story unlocks missing.");
-                int greetings=s.NeighborGreetings; s.Travel("home",data,()=>1); s.GreetNeighbor(data);
-                check(s.NeighborGreetings==greetings,"Moved neighbor still answered through the wall.");
-                Reach(s,data); check(s.CurrentBeat(data).id=="final_call" && s.CanChooseLate(1,data),"Trusted delegation unavailable.");
-                s.ChooseLateStory(0,data);
-                check(!s.HasEnded && s.CurrentBeat(data).id=="final_visit","Direct visit did not lead to the visit scene.");
-                Reach(s,data); check(s.CurrentLocation=="pharmacy" && s.LateScenePending,"Visit scene did not open at the pharmacy.");
-                s.ChooseLateStory(0,data);
-                check(s.EndingId=="tomorrow_here" && !s.CanAct && s.Travel("home",data,()=>1)=="지금은 이동할 수 없다." && s.LateEndingText(data).Contains("관측을 종료한다"),"Direct visit ending wrong or did not stop play.");
-                saves.Save(s); check(saves.TryLoad(out restored,out _) && restored.EndingId=="tomorrow_here","Ending not saved.");
-
-                // Path B: same relationships, the check handed to Dongrim.
-                s=AfterExpedition(data); Play(s,data,0,0,0,0,0,0,0,0,0,0,0,0);
-                Reach(s,data); s.ChooseLateStory(1,data); check(s.EndingId=="continued_care","Delegated check did not reach its ending.");
-
-                // Path C: closing off; delegation has no one to ask.
-                s=AfterExpedition(data); Play(s,data,2,2,2,2,1,1,2,0,1,2,1,1);
-                check(s.Isolation>=7 && s.LateTrust<data.lateStory.delegateTrust && s.Lure==0,"Isolation path weights wrong.");
-                Reach(s,data); check(!s.CanChooseLate(1,data),"Delegation open without trust.");
-                s.ChooseLateStory(2,data); check(s.EndingId=="closed_door","Closed door ending wrong.");
-
-                // Path D: repeating gathering calls overrides the last choice.
-                s=AfterExpedition(data); Play(s,data,1,0,1,0,0,0,0,0,2,1,2,0);
-                Reach(s,data); var beat=s.CurrentBeat(data);
-                check(s.Lure>=data.lateStory.lureEnding && s.LureEndingDue(beat,data) && s.LateChoices(data).Length==1,"Gathering calls did not take over the final scene.");
-                s.ChooseLateStory(0,data); check(s.EndingId=="last_broadcast","Last broadcast ending wrong.");
-
-                // Saves written before the late story keep their progress and gain the new places.
-                var old=AfterExpedition(data); old.Locations.RemoveAll(x=>x.id=="relay_room" || x.id=="sp_station" || x.id=="construction_site" || x.id=="seongnae_bridge"); old.LateFlags=null; old.EndingId=null;
-                clean(); File.WriteAllText(path,JsonUtility.ToJson(old));
-                check(saves.TryLoad(out restored,out _) && restored.Locations.Count==data.locations.Length && restored.LateFlags!=null && restored.CurrentBeat(data)?.id=="absent_share","Older save did not gain the late story.");
-                Debug.Log("VD_LATE_STORY_CHECKS_OK: "+checks+" assertions; gates, saves, unlocks, moved neighbor and all four endings.");
+                Check(saves.TryLoad(out s,out _),"could not restore core choice");
+                FinishBroken(s,route,data);
+                while(s.CurrentBeat(data).id!="endless") ChooseBeat(s,data);
+                Check(s.RelayStaff().Contains("donglim")==(route!="A1"),"wrong survivor eligible for relay");
+                ChooseBeat(s,data);
+                Check(s.RelayActive && s.CurrentAct(data)==4 && s.IsLocationUnlocked("rescue_post",data),"relay did not start from the policy choice");
+                if(route=="A1")
+                {
+                    var grief=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+                    grief.PendingEncounter=null;
+                    Dawn(grief,data);
+                    Dawn(grief,data);
+                    Check(grief.RelayHiddenAt("relay_room"),"grieving Jiwoo did not hide a request");
+                    Go(grief,"relay_room",data);
+                    grief.VisitRelay("relay_room",data);
+                    Check(grief.CanAddressJiuRequest("relay_room",data),"visiting did not uncover the hidden request");
+                    grief.AddressJiuRequest("relay_room",true,data);
+                    Check(grief.JiuControlState=="Recovering","sharing the request did not advance Jiwoo's recovery");
+                }
+                s.HomeStorage.Add("tuna",6);
+                var send=new RelayDecision{node="pharmacy",action="send",option="food",source="home"};
+                int before=s.HomeStorage.Count("tuna")+s.HomeStorage.Count("spam");
+                Check(s.CanQueueRelay(send),"could not queue a dispatch");
+                s.QueueRelay(send);
+                Check(s.HomeStorage.Count("tuna")+s.HomeStorage.Count("spam")==before,"queued dispatch spent supplies before submission");
+                s.CancelRelay(0);
+                Check(s.Relay.plan.Count==0 && s.HomeStorage.Count("tuna")+s.HomeStorage.Count("spam")==before,"cancelled dispatch spent supplies");
+                s.QueueRelay(send);
+                s.QueueRelay(new RelayDecision{node="relay_room",action="staff",option="jiwoo"});
+                s.SubmitRelay(data);
+                Check(s.HomeStorage.Count("tuna")+s.HomeStorage.Count("spam")==before-3,"confirmed dispatch did not use real supplies");
+                Dawn(s,data);
+                Broadcast(s,data,1);
+                Go(s,"pharmacy",data);
+                s.VisitRelay("pharmacy",data);
+                ChooseBeat(s,data);
+                Check(s.CurrentAct(data)==5,"completed operation did not open act 5");
+                ChooseBeat(s,data);
+                Open(s,data);
+                Check(s.CanChooseLate(1,data),"trusted delegation unavailable");
+                var direct=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+                direct.ChooseLateStory(0,data);
+                ChooseBeat(direct,data);
+                Check(direct.EndingId=="tomorrow_here" && !direct.HasTrueArchive,"direct visit unlocked the delegation archive");
+                var withoutHandover=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+                withoutHandover.LateFlags.Remove("jiwoo_shared");
+                withoutHandover.ChooseLateStory(1,data);
+                Check(withoutHandover.EndingId=="collapse" && !withoutHandover.HasTrueArchive,"delegation without handover unlocked the true ending");
+                s.LateStoryResult=s.ChooseLateStory(1,data);
+                Check(s.EndingId=="tomorrow_delegated" && s.HasTrueArchive && !s.CanAct,"distributed handover and delegation did not unlock the true ending");
+                resultSaves.Save(s);
+                Check(resultSaves.TryLoad(out var endingSave,out _) && endingSave.HasTrueArchive && endingSave.LateStoryResult==s.LateStoryResult,"the saved story result or the true ending was lost");
+                Check(!s.LateEndingText(data).Contains("관측 종료"),"archive leaked into main ending");
             }
-            finally { data.TEMP_BALANCE.hungerPerHour=hunger; clean(); }
+
+            foreach(string policy in new[]{"gather","silent","closed"})
+            {
+                Check(saves.TryLoad(out s,out _),"could not restore before ending route");
+                FinishBroken(s,"B",data);
+                while(s.CurrentBeat(data).id!="endless") ChooseBeat(s,data);
+                ChooseBeat(s,data,policy=="gather"?1:policy=="silent"?2:0);
+                if(policy=="silent")
+                {
+                    int morningIssues=s.MorningIssues.Count;
+                    for(int i=0;i<10 && !s.Relay.collapseDue;i++) Dawn(s,data);
+                    Check(s.MorningIssues.Count==morningIssues,"public broadcasts continued after the transmitter was shut off");
+                    s.TryBeginLateStory(data);
+                    Check(s.EndingId=="collapse" && !s.IsGameOver,"silent networks did not collapse independently of HP");
+                }
+                else
+                {
+                    for(int i=0;i<3;i++) Dawn(s,data);
+                    if(policy=="gather") Check(s.MorningIssues.Last().body==data.lateStory.gatherBroadcast,"the copied voice did not replace the regular morning broadcast");
+                    ChooseBeat(s,data);
+                    ChooseBeat(s,data);
+                    ChooseBeat(s,data,policy=="gather"?0:2);
+                    Check(s.EndingId==(policy=="gather"?"last_broadcast":"closed_door"),"incorrect ending for "+policy);
+                }
+            }
+
+            var legacy=AfterExpedition(data);
+            legacy.LateStoryRevision=0;
+            legacy.LateStep=8;
+            legacy.LateFlags.Add("relay_room");
+            legacy.Locations.RemoveAll(x=>x.id=="soup_house" || x.id=="river_post" || x.id=="rescue_post");
+            File.WriteAllText(path,JsonUtility.ToJson(legacy));
+            Check(saves.TryLoad(out restored,out _) && restored.CurrentBeat(data).id=="seokhyeon_meet" && restored.Locations.Count==data.locations.Length,"legacy beat identity lost");
+            var oldTestEntry=SurvivalState.Act3TestStart(data,0,"기록자");
+            oldTestEntry.LateStoryRevision=0;
+            oldTestEntry.LateStep=9;
+            oldTestEntry.LateFlags.Remove("neighbor_moved");
+            oldTestEntry.LateFlags.Remove("pharmacy");
+            oldTestEntry.UnlockedLocations.Remove("pharmacy");
+            File.WriteAllText(path,JsonUtility.ToJson(oldTestEntry));
+            Check(saves.TryLoad(out restored,out _) && restored.CurrentBeat(data).id=="core_choice" && restored.BrokenPathScenePending &&
+                restored.NeighborMoved && restored.IsLocationUnlocked("pharmacy",data),"older Act 3 test save could not reach the final visit");
+            Debug.Log("VD_LATE_STORY_CHECKS_OK: normal act gates, permanent erasures, requests, saves, policy and endings.");
         }
-        static bool TrySave(SessionSaveStore saves,SurvivalState s) { try { saves.Save(s); return true; } catch(InvalidDataException) { return false; } }
     }
 }

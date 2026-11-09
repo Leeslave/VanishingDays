@@ -24,13 +24,15 @@ namespace VanishingDays.Editor
                     check(!s.AdvanceTutorial() && !s.ViewTutorialTopic(1) && s.NeighborStage==0,"Tutorial auto-completed neighbor.");
                     s.GreetNeighbor(data);check(s.AdvanceTutorial() && !s.NeedsNeighborIntroduction && s.NeighborGreetings==1,"Actual greeting did not unlock lesson.");
                     s.GreetNeighbor(data);check(s.NeighborGreetings==1,"Same-day tutorial greeting duplicated event.");
-                    for(int step=2;step<=5;step++)
+                    for(int step=2;step<=4;step++)
                     {
                         check(!s.AdvanceTutorial(),"Unseen lesson advanced.");
                         check(s.ViewTutorialTopic(step) && !s.ViewTutorialTopic(step),"Topic marking not idempotent.");
                         saves.Save(s);check(saves.TryLoad(out s,out _) && s.TutorialActive && s.TutorialStep==step && s.CanAdvanceTutorial,"Save lost lesson progress.");
                         check(s.AdvanceTutorial(),"Viewed lesson did not advance.");
                     }
+                    check(s.TutorialStep==5 && !s.ViewTutorialTopic(5) && !s.AdvanceTutorial(),"Opening the sleep page completed practice without a click.");
+                    s.CompleteSleepPractice();
                     check(!s.TutorialActive && s.TutorialStep==6 && s.hour==hour && s.RandomState==rng && s.HomeStorage.Count("water")==water,"Tutorial changed simulation or failed completion.");
                     s.BeginTutorial();s.SkipTutorial();check(!s.TutorialActive && !s.NeedsNeighborIntroduction,"Replay reset actual neighbor progress.");
                     s.PendingEncounter=new Encounter{kind="hungry"};s.BeginTutorial();check(!s.TutorialActive,"Tutorial bypassed encounter.");
@@ -49,7 +51,13 @@ namespace VanishingDays.Editor
                 automatic.ViewTutorialTopic(3);automatic.ViewTutorialTopic(4);automatic.ViewTutorialTopic(2);
                 check(automatic.AdvanceCompletedTutorial() && automatic.TutorialStep==5,"Consecutive completed topics were not skipped.");
                 saves.Save(automatic);check(saves.TryLoad(out automatic,out _) && automatic.TutorialStep==5,"Automatic tutorial progress was not saved.");
-                automatic.ViewTutorialTopic(5);check(automatic.AdvanceCompletedTutorial() && !automatic.TutorialActive && automatic.TutorialStep==6,"Last topic did not complete automatically.");
+                check(!automatic.ViewTutorialTopic(5),"Sleep preview completed practice.");
+                int practiceHour=automatic.hour; int sleepHours=automatic.SleepHours;
+                automatic.Cook("rice",data);
+                check(automatic.hour==practiceHour && automatic.HomeStorage.Count("rice_meal")==1 && automatic.TutorialActive,"Tutorial cooking spent time or skipped sleep practice.");
+                automatic.Rest(data,false,8);
+                check(!automatic.TutorialActive && automatic.TutorialStep==6 && automatic.hour==practiceHour &&
+                    automatic.SleepHours==sleepHours,"Sleep practice changed the clock or did not finish the tutorial.");
                 automatic.BeginTutorial();automatic.AdvanceTutorial();
                 check(automatic.AdvanceCompletedTutorial() && !automatic.TutorialActive,"Replay forgot completed topics.");
                 foreach(int invalid in new[]{-1,7}) {old.TutorialStep=invalid;clean();File.WriteAllText(path,JsonUtility.ToJson(old));check(!saves.TryLoad(out _,out _),"Invalid tutorial step accepted.");}

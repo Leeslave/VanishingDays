@@ -17,7 +17,7 @@ namespace VanishingDays
         {
             foreach(var place in data.locations)
             {
-                if(IsLocationUnlocked(place.id,data) || place.requiresSupplyRumor || !string.IsNullOrEmpty(place.requiresStoryFlag)) continue;
+                if(IsLocationUnlocked(place.id,data) || IsLocationErased(place.id) || place.requiresSupplyRumor || !string.IsNullOrEmpty(place.requiresStoryFlag)) continue;
                 var source=Locations.Find(x=>x.id==place.requiresLocation);
                 if((string.IsNullOrEmpty(place.requiresLocation) || source!=null && source.searches>=place.requiresSearches) && TotalDongrimMeetings>=place.requiresDongrimMeetings)
                 {
@@ -76,12 +76,12 @@ namespace VanishingDays
         }
         public string DongrimHint(SurvivalDefinitions data)
         {
-            if(!Story.HasMetDongrim) return "";
-            return "동림의 약속 · DAY "+NextDongrimDay+"부터 낮에 "+data.Location(DongrimMeetingLocation).name+"에서 재회\n"+(TotalDongrimMeetings==1?"빈집 뒤편 골목의 흔적을 함께 확인하기로 했다.":TotalDongrimMeetings==2?"고등학교 게시판 앞에서 주변 생존자 소식을 듣기로 했다.":"이틀 간격으로 순찰 중인 동림과 소식·식량을 교환할 수 있다.");
+            if(!Story.HasMetDongrim || BrokenPathActive || BrokenPath.Outcome=="B_Heavy" || !BrokenPath.DonglimAlive) return "";
+            return "동림의 약속 · DAY "+NextDongrimDay+"부터 낮에 "+data.Location(DongrimMeetingLocation).name+"에서 재회\n"+(TotalDongrimMeetings==1?"동림이 지도에 짚어 준 곳은 빈집 뒤편이다.":TotalDongrimMeetings==2?"고등학교 게시판 앞에서 주변 생존자 소식을 듣기로 했다.":"이틀 간격으로 순찰 중인 동림과 소식·식량을 교환할 수 있다.");
         }
         bool TryMeetDongrim(SurvivalDefinitions data)
         {
-            if(!CanAct || BrokenPathActive || BrokenPath?.DonglimAlive==false || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=DongrimMeetingLocation) return false;
+            if(!CanAct || BrokenPathActive || BrokenPath.Outcome=="B_Heavy" || BrokenPath?.DonglimAlive==false || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=DongrimMeetingLocation) return false;
             PendingDongrimMeeting=true;
             Note("[최동림 재회] "+data.Location(CurrentLocation).name+"에서 익숙한 목소리가 들렸다.");
             return true;

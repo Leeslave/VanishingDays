@@ -34,7 +34,7 @@ namespace VanishingDays.Editor
                 var s=fresh();s.InstalledFacilities.Add("water_filter");if(level>=2)s.InstalledFacilities.Add("water_filter2");if(level==3)s.InstalledFacilities.Add("water_filter3");
                 s.HomeStorage.Add("raw_water",10);int hour=s.hour,water=s.HomeStorage.Count("water");
                 s.Craft("purify_water",data);s.Craft("purify_water",data);
-                check(s.HomeStorage.Count("raw_water")==2 && s.HomeStorage.Count("water")==water+2*(level+1) && s.hour==hour,"Purifier yield/loss/time incorrect.");
+                check(s.HomeStorage.Count("raw_water")==2 && s.HomeStorage.Count("water")==water+2*(level+1) && s.hour==hour+2,"Purifier yield/loss/time incorrect.");
                 s.Craft("purify_water",data);check(s.HomeStorage.Count("raw_water")==2,"Purifier spent incomplete batch.");
             }
             var state=fresh();state.StartWaterCollection(2);check(state.CollectorCycleHours==0,"Missing collector allowed collection.");
@@ -49,8 +49,8 @@ namespace VanishingDays.Editor
             }
             state=fresh();state.CurrentLocation="school";state.AwayFromHome=true;state.UnlockedLocations.AddRange(new[]{"empty_house","school"});
             state.hour=11;check(state.SearchNightWarning(data)=="","Safe search warned.");
-            state.hour=12;int before=state.hour;uint random=state.RandomState;check(state.HomeArrivalAfterSearch(data).Hour==18 && state.SearchNightWarning(data)!="","Exact 18:00 return did not warn.");
-            state.hour=15;check(state.CalendarDate.AddHours(state.hour+data.Location("school").travelHours).Hour==18 && state.SearchNightWarning(data).Contains("21:00"),"15:00 search/return warning incorrect.");
+            state.hour=14;int before=state.hour;uint random=state.RandomState;check(state.HomeArrivalAfterSearch(data).Hour==18 && state.SearchNightWarning(data)!="","Exact 18:00 return did not warn.");
+            state.hour=16;check(state.CalendarDate.AddHours(state.hour+data.Location("school").travelHours).Hour==18 && state.SearchNightWarning(data).Contains("20:00"),"16:00 search/return warning incorrect.");
             state.hour=18;check(state.SearchNightWarning(data).Contains("이미 야간"),"Already-night search did not warn.");
             state.hour=23;check(state.HomeArrivalAfterSearch(data).Day==state.CalendarDate.AddDays(1).Day && state.SearchNightWarning(data)!="","Midnight search warning lost date.");
             check(state.RandomState==random && state.hour==23,"Warning preview mutated state.");

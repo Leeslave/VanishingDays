@@ -103,7 +103,7 @@ namespace VanishingDays
                     var name=Label(block.Speaker,24,y+5,116,40,size-6,Fade(radio?(journal?JournalRadio:Cold):journal?JournalSpeaker:AmberText,alpha),parent); name.fontStyle=FontStyle.Bold;
                     float nameH=name.preferredHeight+2; name.rectTransform.sizeDelta=new Vector2(116,nameH);
                     if(radio) { Label("무전",24,y+5+nameH,116,28,size-9,Fade(journal?JournalRadio:Cold,alpha),parent); nameH+=28; }
-                    var line=Label(block.Text,152,y,628,40,size+1,Fade(ink,alpha),parent); line.fontStyle=weight; line.lineSpacing=1.28f;
+                    var line=Label(block.Text,152,y,628,40,size+1,Fade(ink,alpha),parent); if(storyFont!=null) line.font=storyFont; line.fontStyle=weight; line.lineSpacing=1.28f;
                     float h=line.preferredHeight+4; line.rectTransform.sizeDelta=new Vector2(628,h);
                     return Mathf.Max(h,nameH);
                 }
@@ -120,7 +120,7 @@ namespace VanishingDays
                 default:
                 {
                     string body=block.Kind==ScriptBlockKind.Noise?"▒▒  "+block.Meta+"  ▒▒":block.ToString();
-                    var text=Label(body,24,y,756,40,size,Fade(block.Kind==ScriptBlockKind.Noise?Faint:soft,alpha),parent); text.fontStyle=weight; text.lineSpacing=1.3f;
+                    var text=Label(body,24,y,756,40,size,Fade(block.Kind==ScriptBlockKind.Noise?Faint:soft,alpha),parent); if(storyFont!=null) text.font=storyFont; text.fontStyle=weight; text.lineSpacing=1.3f;
                     float h=text.preferredHeight+4; text.rectTransform.sizeDelta=new Vector2(756,h);
                     return h;
                 }
@@ -145,19 +145,20 @@ namespace VanishingDays
             var current=blocks[sceneStep];
             // The whole scene is a tap target; the portrait's own button sits on top of it.
             Pressable("장면 넘기기",0,top,900,1290-top,sceneAdvance,true,Color.clear,Color.clear);
-            float portraitH=Mathf.Clamp(1396-top-560,0,300);
+            const float bottom=1284;
+            float portraitH=Mathf.Min(620,bottom-top-8);
             if(portraitH>=120) Portrait(blocks,sceneStep,48,top,804,portraitH);
-            else portraitH=0;
-            float y=top+portraitH+(portraitH>0?22:0);
+            float panelTop=Mathf.Min(top+portraitH*.68f,bottom-260);
+            Box("Dialogue glass",48,panelTop,804,bottom-panelTop,new Color(Ink.r,Ink.g,Ink.b,.76f));
+            float y=panelTop+14;
             if(sceneStep>0)
             {
                 var previous=blocks[sceneStep-1];
-                var ghost=Label(previous.Kind==ScriptBlockKind.Speech || previous.Kind==ScriptBlockKind.Radio?previous.Speaker+"   "+previous.Text:previous.ToString(),48,y,804,40,22,Faint);
-                float gh=Mathf.Min(ghost.preferredHeight,92); ghost.rectTransform.sizeDelta=new Vector2(804,gh);
+                var ghost=Label(previous.Kind==ScriptBlockKind.Speech || previous.Kind==ScriptBlockKind.Radio?previous.Speaker+"   "+previous.Text:previous.ToString(),68,y,764,40,22,Muted);
+                float gh=Mathf.Min(ghost.preferredHeight,56); ghost.rectTransform.sizeDelta=new Vector2(764,gh);
                 y+=gh+14;
             }
-            Box("Scene rule",48,y,804,2,Edge); y+=20;
-            const float bottom=1284;
+            Box("Scene rule",68,y,764,2,Edge); y+=14;
             Text line;
             switch(current.Kind)
             {
@@ -165,9 +166,9 @@ namespace VanishingDays
                 case ScriptBlockKind.Radio:
                 {
                     bool radio=current.Kind==ScriptBlockKind.Radio;
-                    var name=Label(current.Speaker+(radio?"  ·  무전":""),48,y,804,36,24,radio?Cold:current.IsPlayer?Muted:AmberText); name.fontStyle=FontStyle.Bold;
+                    var name=Label(current.Speaker+(radio?"  ·  무전":""),68,y,764,36,24,radio?Cold:current.IsPlayer?Muted:AmberText); name.fontStyle=FontStyle.Bold;
                     y+=46;
-                    line=Label(current.Text,48,y,804,bottom-y,34,Paper); line.lineSpacing=1.3f;
+                    line=Label(current.Text,68,y,764,bottom-y-8,34,Paper); line.lineSpacing=1.3f;
                     break;
                 }
                 case ScriptBlockKind.Broadcast:
@@ -178,11 +179,29 @@ namespace VanishingDays
                     break;
                 }
                 default:
-                    line=Label(current.ToString(),48,y,804,bottom-y,29,SceneNarration); line.lineSpacing=1.32f;
+                    line=Label(current.ToString(),68,y,764,bottom-y-8,29,SceneNarration); line.lineSpacing=1.32f;
                     break;
             }
-            // Long lines step down a size before they would be cut off.
-            if(line!=null) for(int fit=line.fontSize;line.preferredHeight>bottom-y && fit>22;fit-=3) line.fontSize=fit-3;
+            if(line!=null)
+            {
+                if(storyFont!=null) line.font=storyFont;
+                float available=bottom-y-8;
+                for(int size=line.fontSize;line.preferredHeight>available && size>24;size-=2) line.fontSize=size-2;
+                if(line.preferredHeight>available)
+                {
+                    float height=line.preferredHeight+6;
+                    var viewport=Box("Dialogue scroll",68,y,764,available,Color.clear);
+                    viewport.GetComponent<Image>().raycastTarget=true;
+                    viewport.gameObject.AddComponent<RectMask2D>();
+                    var content=Rect("Dialogue text",viewport,0,0,764,height);
+                    var scroll=viewport.gameObject.AddComponent<ScrollRect>();
+                    scroll.content=content; scroll.viewport=viewport; scroll.horizontal=false;
+                    scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=45;
+                    line.rectTransform.SetParent(content,false);
+                    line.rectTransform.anchoredPosition=Vector2.zero;
+                    line.rectTransform.sizeDelta=new Vector2(764,height);
+                }
+            }
             Progress(blocks.Count,sceneStep,48,1302,380);
             Button("건너뛰기",444,1302,180,88,SkipScene);
             PrimaryButton("다음 →",640,1302,212,88,sceneAdvance);
@@ -225,9 +244,10 @@ namespace VanishingDays
                 var drawn=Resources.Load<Texture2D>("Art/Portraits/"+id);
                 if(drawn!=null)
                 {
-                    var image=Rect("Portrait art",frame,0,0,w,h).gameObject.AddComponent<RawImage>(); image.texture=drawn; image.raycastTarget=false; image.color=new Color(1,1,1,dim?.4f:1);
-                    float desired=w/h, actual=drawn.width/(float)drawn.height;
-                    image.uvRect=actual>desired?new UnityEngine.Rect((1-desired/actual)/2,0,desired/actual,1):new UnityEngine.Rect(0,1-actual/desired,1,actual/desired);
+                    float aspect=drawn.width/(float)drawn.height;
+                    float width=Mathf.Min(w,h*aspect), height=width/aspect;
+                    var image=Rect("Portrait art",frame,(w-width)/2,(h-height)/2,width,height).gameObject.AddComponent<RawImage>();
+                    image.texture=drawn; image.raycastTarget=false; image.color=new Color(1,1,1,dim?.55f:1);
                 }
                 else
                 {
@@ -239,7 +259,7 @@ namespace VanishingDays
             string tag=overAir?"무전 수신 중":speaker==null?"":speaker+(dim?" · 듣는 중":"");
             if(tag.Length>0)
             {
-                var tagBox=Box("Portrait tag",x+16,y+h-52,tag.Length*21+36,40,new Color(Ink.r,Ink.g,Ink.b,.8f));
+                var tagBox=Box("Portrait tag",x+16,y+16,tag.Length*21+36,40,new Color(Ink.r,Ink.g,Ink.b,.8f));
                 Label(tag,16,4,tag.Length*21+20,32,20,overAir?Cold:Muted,tagBox);
             }
             if(step>0)
@@ -386,6 +406,11 @@ namespace VanishingDays
             state.LateStep=Array.FindIndex(definitions.lateStory.beats,x=>x.body.Contains("한지우:")); Render();
             Expect(sceneAdvance!=null,"a late scene with speech should step");
             sceneAdvance(); sceneAdvance();
+            var photo=root.Find("Portrait/Portrait art")?.GetComponent<RawImage>();
+            var glass=root.Find("Dialogue glass")?.GetComponent<Image>();
+            Expect(photo!=null && photo.uvRect==new UnityEngine.Rect(0,0,1,1) &&
+                Mathf.Abs(photo.rectTransform.rect.width/photo.rectTransform.rect.height-photo.texture.width/(float)photo.texture.height)<.01f &&
+                glass!=null && glass.color.a<1,"portrait was cropped or dialog panel was opaque");
             yield return Shot("B-LATE-STEP");
             SkipScene();
             yield return Shot("B-LATE-DONE");

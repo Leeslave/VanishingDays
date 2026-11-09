@@ -27,33 +27,45 @@ namespace VanishingDays.Editor
                 check(s.Vitals.CurrentMental==54 && s.Sleepiness==0,"Extra sleep did not restore two mental points per hour.");
                 s=fresh(); s.AdvanceTime(18,data); s.Rest(data); s.Rest(data); s.Rest(data);
                 check(s.Vitals.CurrentMental==100 && s.SleepHours==0,"Split sleep was not accumulated.");
-                s=fresh(); s.Backpack.Add("weapon",1); s.Equip("weapon",data); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.AttackHungrySurvivor(data,()=>0);
-                check(s.Vitals.MentalCap==75 && s.Vitals.CurrentMental==75 && s.Backpack.Count("tuna")==0 && s.PendingEncounter==null,"Attack moral cost/no-loot wrong.");
-                s.AttackHungrySurvivor(data,()=>0); check(s.Backpack.Count("tuna")==0 && s.Vitals.MentalCap==75,"Resolved attack repeated.");
-                s.Vitals.AdjustMental(int.MaxValue); s.AdvanceTime(8,data,true);
-                check(s.Vitals.CurrentMental==75 && s.Vitals.MentalCap==75,"Sleep restored permanent moral cap.");
-                s=fresh(); s.Backpack.Add("weapon",1); s.Equip("weapon",data); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.AttackHungrySurvivor(data,()=>0);
-                check(s.Vitals.MentalCap==75 && s.lastReport.Contains("숨"),"Armed killing did not lower cap.");
-                s=fresh(); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.ResolveEncounter(true,data,()=>0);
-                check(s.Vitals.MentalCap==100,"Unarmed escape was treated as a killing.");
-                foreach(double outcome in new[]{0d,1d})
+                foreach(var weapon in new[]{"club","pipe_club","machete"})
                 {
-                    s=fresh();s.Backpack.Add("weapon",1);s.Equip("weapon",data);s.PendingEncounter=new Encounter{kind="hungry",context="길거리"};int calls=0;
-                    s.ResolveEncounter(true,data,()=>{calls++;return outcome;});
-                    check(s.Vitals.MentalCap==100 && s.Vitals.CurrentMental==100 && s.PendingEncounter==null && !s.lastReport.Contains("숨을 거뒀"),"Breaking away with a weapon harmed/killed the other survivor.");
-                    check(calls==1,"Nonviolent escape rolled an additional attack outcome.");
-                    check(outcome==0?s.Vitals.Injuries.Count==0:s.Vitals.Injuries.Count==1,"Break-away success/failure changed unexpectedly.");
+                    s=fresh(); s.CurrentLocation="store"; s.AwayFromHome=true;
+                    s.Backpack.Add(weapon,1); s.Equip(weapon,data);
+                    s.Backpack.Add("tuna",2); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"};
+                    uint rng=s.RandomState;
+                    string injury=s.AttackInjuryDescription(data);
+                    s.AttackHungrySurvivor(data);
+                    int shock=weapon=="club"?4:weapon=="pipe_club"?8:12;
+                    check(s.PendingEncounter==null && s.Vitals.MentalCap==100 && s.Vitals.CurrentMental==100-shock &&
+                        s.Backpack.Count("tuna")==2 && s.RandomState==rng && s.lastReport.Contains(injury),"Weapon attack did not guarantee escape with its own injury level.");
+                    s.AttackHungrySurvivor(data);
+                    check(s.Vitals.CurrentMental==100-shock,"Resolved attack repeated.");
+                }
+                s=fresh(); s.Vitals.MoralHarm(25); s.AdvanceTime(8,data,true);
+                check(s.Vitals.MentalCap==75 && s.Vitals.CurrentMental==75,"Legacy permanent mental cap did not persist.");
+                s=fresh(); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.ResolveEncounter(true,data,()=>0);
+                check(s.Vitals.MentalCap==100,"Unarmed escape harmed mental capacity.");
+                foreach(bool escape in new[]{true,false})
+                {
+                    s=fresh(); s.CurrentLocation="store"; s.AwayFromHome=true;
+                    double unarmed=s.EscapeChance(data); s.Backpack.Add("weapon",1); s.Equip("weapon",data);
+                    s.Backpack.Add("tuna",data.TEMP_BALANCE.dayLoss+1); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"};
+                    int calls=0;
+                    s.ResolveEncounter(true,data,()=>{calls++; return escape?unarmed+.01:1;});
+                    check(s.PendingEncounter==null && s.EscapeChance(data)>unarmed && s.Vitals.CurrentMental==100 &&
+                        s.Vitals.Injuries.Count==0 && calls==1,"Armed threat did not use its escape chance.");
+                    check(s.Backpack.Count("tuna")== (escape?data.TEMP_BALANCE.dayLoss+1:1),"Armed threat did not preserve or lose the right supplies.");
                 }
                 s=fresh();s.PendingEncounter=new Encounter{kind="hungry",context="길거리"};var pending=s.PendingEncounter;uint attackRandom=s.RandomState;
-                s.AttackHungrySurvivor(data,()=>0);
+                s.AttackHungrySurvivor(data);
                 check(s.PendingEncounter==pending && s.RandomState==attackRandom && s.Vitals.MentalCap==100,"Unarmed attack resolved the encounter.");
-                s.Backpack.Add("weapon",1);s.AttackHungrySurvivor(data,()=>0);
+                s.Backpack.Add("weapon",1);s.AttackHungrySurvivor(data);
                 check(s.PendingEncounter==pending,"Unequipped weapon enabled attack.");
-                s.Equip("weapon",data);s.PendingEncounter=new Encounter{kind="trader"};s.AttackHungrySurvivor(data,()=>0);
+                s.Equip("weapon",data);s.PendingEncounter=new Encounter{kind="trader"};s.AttackHungrySurvivor(data);
                 check(s.PendingEncounter.kind=="trader" && s.Vitals.MentalCap==100,"Attack targeted a trader.");
-                s.PendingEncounter=new Encounter{kind="hungry"};s.Vitals.CurrentHP=0;s.AttackHungrySurvivor(data,()=>0);
+                s.PendingEncounter=new Encounter{kind="hungry"};s.Vitals.CurrentHP=0;s.AttackHungrySurvivor(data);
                 check(s.PendingEncounter!=null && s.Vitals.MentalCap==100,"Dead player attacked.");
-                s=fresh(); s.Backpack.Add("weapon",1); s.Equip("weapon",data); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.AttackHungrySurvivor(data,()=>.9);
+                s=fresh(); s.Backpack.Add("weapon",1); s.Equip("weapon",data); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.AttackHungrySurvivor(data);
                 check(s.Vitals.MentalCap==100 && s.PendingEncounter==null,"Nonfatal attack was treated as a killing.");
                 s.Vitals.MoralHarm(int.MaxValue); check(s.Vitals.MentalCap==0 && s.Vitals.CurrentMental==0 && !s.IsGameOver,"Moral cap underflow or unrequested death.");
                 s=fresh(); s.Travel("store",data,()=>.27);

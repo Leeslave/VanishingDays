@@ -45,7 +45,7 @@ namespace VanishingDays
         public bool CanTriggerDongrimFirstEncounter(bool approvedCrowdRescueCondition) => HasRadio && approvedCrowdRescueCondition && !DongrimRescueCompleted && !HasMetDongrim;
         public bool CompleteDongrimRescue(bool approvedCrowdRescueCondition) { if(!CanTriggerDongrimFirstEncounter(approvedCrowdRescueCondition)) return false; DongrimRescueCompleted=true; HasMetDongrim=true; return true; }
     }
-    [Serializable] public class LocationProgress { public string id; public int searches; public Inventory remaining=new Inventory(); }
+    [Serializable] public class LocationProgress { public string id; public int searches, erasedDay; public Inventory remaining=new Inventory(); }
     // report keeps the search/arrival result that the encounter interrupted, so it survives the resolution.
     [Serializable] public class Encounter { public string kind, context, report; }
     [Serializable] public partial class SurvivalState
@@ -69,7 +69,7 @@ namespace VanishingDays
         public bool IsGameOver => Vitals.CurrentHP<=0;
         public DateTime CalendarDate => new DateTime(2031,2,26).AddDays(day-1);
         public bool IsNight(SurvivalBalance balance) => hour<balance.dayStarts || hour>=balance.nightStarts;
-        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion && !LateScenePending && !BrokenPathScenePending && !HasEnded;
+        public bool CanAct => !IsGameOver && PendingEncounter==null && !HasActiveCrowdIncident && !PendingDongrimMeeting && !HasActiveCompanion && !LateScenePending && !HasLateStoryResult && !BrokenPathScenePending && !HasEnded;
         public bool CanUseRadio => Story.HasRadio && (Backpack.Count("radio")>0 || (CurrentLocation=="home" && HomeStorage.Count("radio")>0));
         public static SurvivalState NewGame(GameDifficulty difficulty,SurvivalDefinitions definitions,uint seed=0)
         {
@@ -90,6 +90,7 @@ namespace VanishingDays
                 state.Locations.Add(progress);
             }
             state.UpgradeOnboarding();
+            state.InitializeLateStory();
             state.Note("기록지 #001. 나는 오늘도 살아남아야 한다."); return state;
         }
         public void UpgradeMedicalLoot(SurvivalDefinitions data)
@@ -119,14 +120,14 @@ namespace VanishingDays
         }
         public void AdvanceTime(int hours,SurvivalDefinitions data,bool resting=false)
         {
-            if(IsGameOver || HasActiveCrowdIncident || PendingDongrimMeeting || hours<=0) return;
+            if(TutorialActive || IsGameOver || HasActiveCrowdIncident || PendingDongrimMeeting || hours<=0) return;
             var b=data.TEMP_BALANCE;
             if(!resting) InjuryRestProgress=0;
             for(int i=0;i<hours && !IsGameOver;i++)
             {
                 if(resting) RecordFact("sleep",CurrentLocation=="home"?"집에서 {hours}시간 잠을 잤다.":"현재 머무는 곳에서 {hours}시간 쉬었다.");
                 hour++; if(hour>=24) { hour=0; day++; FinalizeDiary(day-1,data); TickBrokenPathDay(data); }
-                if(hour==8) PrepareMorning(data);
+                if(hour==8) { PrepareMorning(data); TickRelayDawn(data); }
                 TickSleep(resting,data);
                 TickWaterCollector();
                 Vitals.Hunger=Math.Min(100,Vitals.Hunger+HungerPerHour(data));
@@ -145,6 +146,11 @@ namespace VanishingDays
         public string Rest(SurvivalDefinitions data,bool untilNextPeriod=false,int requestedHours=0)
         {
             if(!CanAct || CurrentLocation!="home") return "집에서 쉴 수 있다.";
+            if(TutorialActive)
+            {
+                CompleteSleepPractice();
+                return "수면 방법을 확인했다. 안내 중에는 시간과 상태가 그대로다.";
+            }
             int hours=requestedHours>0?Math.Min(24,requestedHours):data.TEMP_BALANCE.restHours;
             if(untilNextPeriod && requestedHours<=0) { int target=IsNight(data.TEMP_BALANCE)?data.TEMP_BALANCE.dayStarts:data.TEMP_BALANCE.nightStarts; hours=(target-hour+24)%24; if(hours==0) hours=24; }
             int injuries=Vitals.Injuries.Count;
@@ -159,7 +165,14 @@ namespace VanishingDays
             RecordFact("travel",data.Location(destination).name+"으로 이동을 시작했다.");
             if(CurrentLocation=="home") AwayFromHome=true;
             AdvanceTime(cost,data); if(IsGameOver) { AwayFromHome=CurrentLocation!="home"; return Report("돌아갈 힘이 남지 않았다."); }
+            if(!IsLocationUnlocked(destination,data))
+            {
+                AwayFromHome=CurrentLocation!="home";
+                return Report("이동 중 행선지가 사라졌다. 출발한 곳으로 돌아왔다.");
+            }
+            string previous=CurrentLocation;
             CurrentLocation=destination;
+            FinishDeferredErasure(previous,data);
             MarkVisited(destination);
             if(returning && Companion==CompanionStep.Preparation) CompanionHomePrepared=true;
             RecordFact("travel",data.Location(destination).name+"에 도착했다.");
@@ -208,7 +221,15 @@ namespace VanishingDays
             if(IsGameOver || PendingEncounter?.kind!="hungry") return "현재 대응할 일이 없다.";
             string before=PendingEncounter.report; PendingEncounter=null;
             if(!resist) return EncounterOutcome(before,Report("요구에 순순히 응했다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data)),data);
-            double escape=Math.Min(.95,data.TEMP_BALANCE.escapeChance+Strength(data)*data.TEMP_BALANCE.strengthEscapeBonus);
+            var weapon=EquippedWeapon(data);
+            double escape=EscapeChance(data);
+            if(weapon!=null)
+            {
+                bool escaped=Roll(random)<escape;
+                string text=escaped?"무기를 들어 위협하자 상대가 물러섰다. 그 틈에 빠져나왔다.":"위협이 통하지 않아 소지품을 빼앗겼다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data);
+                RecordFact("story",text);
+                return EncounterOutcome(before,Report(text),data);
+            }
             if(Roll(random)<escape)
             {
                 RecordFact("story","상대를 다치게 하지 않고 손을 뿌리쳐 벗어났다.");
@@ -225,18 +246,27 @@ namespace VanishingDays
             if(CurrentLocation=="home") StoreCarriedOnReturn(data);
             return lastReport;
         }
-        public string AttackHungrySurvivor(SurvivalDefinitions data,Func<double> random=null)
+        public double EscapeChance(SurvivalDefinitions data)
         {
-            if(IsGameOver || PendingEncounter?.kind!="hungry" || !HasWeapon(data)) return "굶주린 상대를 공격하려면 무기를 장착해야 한다.";
-            string before=PendingEncounter.report; PendingEncounter=null;
-            if(Roll(random)<.15)
-            {
-                Vitals.MoralHarm(25);
-                RecordFact("story","상대를 무기로 공격해 숨지게 했다. 정신력 상한이 25 낮아졌다.");
-                return EncounterOutcome(before,Report("무기로 갈겼다. 상대가 쓰러져 숨을 거뒀다. 정신력 최대치가 25 낮아졌다. 잠을 자도 이 상한은 회복되지 않는다."),data);
-            }
-            RecordFact("story","무기로 상대를 공격했고, 다친 상대가 물러섰다.");
-            return EncounterOutcome(before,Report("무기로 갈겼다. 다친 상대가 물러섰다. 소지품은 빼앗기지 않았다."),data);
+            var b=data.TEMP_BALANCE;
+            return Math.Min(.95,b.escapeChance+Strength(data)*b.strengthEscapeBonus+(HasWeapon(data)?.25:0));
+        }
+        public string AttackInjuryDescription(SurvivalDefinitions data)
+        {
+            int strength=EquippedWeapon(data)?.strength??0;
+            return strength>=7?"위중한 부상":strength>=4?"심한 부상":"큰 부상";
+        }
+        public string AttackHungrySurvivor(SurvivalDefinitions data)
+        {
+            var weapon=EquippedWeapon(data);
+            if(IsGameOver || PendingEncounter?.kind!="hungry" || weapon==null) return "굶주린 상대를 공격하려면 무기를 장착해야 한다.";
+            string before=PendingEncounter.report;
+            PendingEncounter=null;
+            int shock=weapon.strength>=7?12:weapon.strength>=4?8:4;
+            Vitals.AdjustMental(-shock);
+            string text=weapon.name+" 공격으로 상대는 "+AttackInjuryDescription(data)+"을 입고 물러났다. 그 틈에 소지품을 지닌 채 빠져나왔다. 정신력 -"+shock+".";
+            RecordFact("story",text);
+            return EncounterOutcome(before,Report(text),data);
         }
         void DamageAndInjure(int damage,SurvivalDefinitions data) { InjuryRestProgress=0; Vitals.Damage(damage); Vitals.Injuries.Add(new Injury { recoveryPenalty=data.TEMP_BALANCE.injuryCapPenalty }); Vitals.ClampToRecoveryCap(data.TEMP_BALANCE); RecordFact("injury","탐사 중 부상을 입었다. 실제 체력 손실 "+damage+"."); }
         string LoseSupplies(Inventory source,int units,SurvivalDefinitions data)
@@ -298,7 +328,7 @@ namespace VanishingDays
             if(!CanAct || CurrentLocation!="home" || data.Item(itemId)==null || itemId=="burner") return "집에서 물품을 정리할 수 있다.";
             var source=toBackpack?HomeStorage:Backpack; var target=toBackpack?Backpack:HomeStorage;
             if(count<=0) return "옮길 수량을 1 이상 입력하자.";
-            if(toBackpack && IsLargeMaterial(itemId) && CarriedLarge+count>CarryCapacity) return "큰 자재는 한 번에 "+CarryCapacity+"개까지 들 수 있다.";
+            if(toBackpack && (IsLargeMaterial(itemId) || itemId=="relay_antenna") && CarriedLarge+Backpack.Count("relay_antenna")+count>CarryCapacity) return "큰 자재는 한 번에 "+CarryCapacity+"개까지 들 수 있다.";
             if(!source.Transfer(target,itemId,count)) return "옮길 물품의 수량이 부족하다.";
             return Report(data.Item(itemId).name+" "+data.Quantity(itemId,count)+(toBackpack?"을 몸에 챙겼다.":"을 집에 보관했다."));
         }

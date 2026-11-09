@@ -15,17 +15,21 @@ namespace VanishingDays
         public bool HasActiveCrowdIncident => Crowd!=null && Crowd.Step>=CrowdStoryStep.Panic && Crowd.Step<CrowdStoryStep.Completed;
         // Story dialogue names the protagonist with the player's nickname. "(이)" after the
         // placeholder follows the final consonant: 재현 → 재현이라고, 민수 → 민수라고.
-        public string Script(string text)
+        public string Script(string text) => WithScriptName(text,string.IsNullOrEmpty(PlayerNickname)?ProtagonistScriptName:PlayerNickname);
+        internal static string WithScriptName(string text,string name)
         {
-            string name=string.IsNullOrEmpty(PlayerNickname)?ProtagonistScriptName:PlayerNickname;
             char last=name.Length>0?name[name.Length-1]:' ';
             bool batchim=last>='가' && last<='힣' && (last-'가')%28!=0;
-            return (text??"").Replace("{PlayerNickname}(이)",name+(batchim?"이":"")).Replace("{PlayerNickname}",name);
+            return (text??"").Replace("{PlayerNickname}(이/가)",name+(batchim?"이":"가"))
+                .Replace("{PlayerNickname}(은/는)",name+(batchim?"은":"는"))
+                .Replace("{PlayerNickname}(을/를)",name+(batchim?"을":"를"))
+                .Replace("{PlayerNickname}(과/와)",name+(batchim?"과":"와"))
+                .Replace("{PlayerNickname}(이)",name+(batchim?"이":"")).Replace("{PlayerNickname}",name);
         }
         public bool IsLocationUnlocked(string id,SurvivalDefinitions data)
         {
             var location=data.Location(id);
-            return location!=null && (!location.requiresSupplyRumor || Story.SupplyRumorUnlocked) && IsStoryLocationOpen(location) && (UnlockedLocations.Contains(id) || (string.IsNullOrEmpty(location.requiresLocation) && location.requiresDongrimMeetings==0));
+            return location!=null && !IsLocationErased(id) && (!location.requiresSupplyRumor || Story.SupplyRumorUnlocked) && IsStoryLocationOpen(location) && (UnlockedLocations.Contains(id) || (string.IsNullOrEmpty(location.requiresLocation) && location.requiresDongrimMeetings==0));
         }
         public bool CanApproachCrowd(SurvivalDefinitions data) => CanAct && CurrentLocation=="supply_site" && Story.SupplySiteVisited && Story.SupplyRumorUnlocked && Story.HasHeardSPBroadcast && !IsNight(data.TEMP_BALANCE) && !Story.CrowdIncidentResolved && Story.CanTriggerDongrimFirstEncounter(true);
         public string ObserveSupplySite(SurvivalDefinitions data)
@@ -74,7 +78,7 @@ namespace VanishingDays
                     Story.CrowdIncidentResolved=true; Story.DongrimContactHintReceived=true;
                     Crowd.Step=CrowdStoryStep.Completed;
                     DongrimMeetings=1; LastDongrimMeetingDay=day;
-                    RecordFact("story","가락시장 군중 속에서 최동림의 도움으로 빠져나왔다. 다음에 다시 만나기로 했다.");
+                    RecordFact("story","가락시장 군중 속에서 최동림의 도움으로 빠져나왔다. 동림은 내일 낮에 빈집 뒤편에서 만나자고 했다.");
                     return Report(Script(data.radioStory.completed)+"\n\n"+DongrimHint(data));
                 default:return "먼저 어떻게 버틸지 선택해야 한다.";
             }

@@ -92,14 +92,6 @@ namespace VanishingDays
             Button("준비 완료 · 출발",48,1300,500,80,()=>Apply(state.Travel(selectedLocation,definitions)),state.CanAct,true);
             Button("취소",570,1300,282,80,()=>{page="location";Render();});
         }
-        void ShelterInstallations()
-        {
-            var facilities=state.InstalledFacilities.Where(id=>!id.StartsWith("water_filter") || id=="water_filter"+(state.WaterFilterLevel==1?"":state.WaterFilterLevel.ToString())).ToList();
-            if(facilities.Count==0 && state.InstalledSecurity.Count==0) return;
-            var card=Pressable("집에 설치한 설비",48,554,804,86,()=>{page="facilities";Render();},state.CanAct,Edge,new Color(Ink.r,Ink.g,Ink.b,.92f)).transform;
-            for(int i=0;i<Math.Min(5,facilities.Count);i++) ItemPicture(facilities[i],12+i*76,8,68,68,card);
-            Label("설치 설비 보기  ›",424,20,360,48,24,Paper,card);
-        }
         void FacilitiesPage()
         {
             Label("집에 설치한 설비",48,462,804,60,36,Paper);
@@ -167,7 +159,7 @@ namespace VanishingDays
             int before=state.day*24+state.hour;ClickGameButton("8시간 잔다");
             if(state.day*24+state.hour-before!=8)throw new Exception("Actual eight-hour button advanced the wrong time.");
             state.InstalledFacilities.AddRange(new[]{"workbench","water_filter","water_collector","bedroll"});page="home";Render();
-            ClickGameButton("집에 설치한 설비");
+            ClickGameButton("설치 설비");
             if(!root.GetComponentsInChildren<UnityEngine.UI.RawImage>().Any(x=>x.name=="Item illustration:water_filter"))throw new Exception("Installed facility artwork missing.");
             yield return null;yield return new WaitForEndOfFrame();CaptureQa(System.IO.Path.Combine(folder,"05-FACILITIES.png"));yield return null;
             state.Story.HasHeardSPBroadcast=true;state.Story.SupplyRumorUnlocked=true;state.LastRadioBroadcastId=definitions.radioStory.generalBroadcast.id;

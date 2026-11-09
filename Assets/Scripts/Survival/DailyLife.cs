@@ -62,10 +62,11 @@ namespace VanishingDays
         public void ReadDiary(int date) { var entry=Diaries.Find(x=>x.day==date); if(entry!=null) entry.read=true; }
         public void PrepareMorning(SurvivalDefinitions data)
         {
-            if(!Story.HasRadio || IsGameOver || day<=MorningLastDay) return;
+            if(!Story.HasRadio || IsGameOver || day<=MorningLastDay || BroadcastPolicy=="silent") return;
             bool first=!Story.HasHeardSPBroadcast && !MorningIssues.Exists(x=>x.kind=="first");
             string body;
             if(first) body=data.radioStory.firstBroadcast.title+"\n\n"+data.radioStory.firstBroadcast.body+"\n\n[정보 카드]\n"+data.radioStory.clueCard;
+            else if(BroadcastPolicy=="gather") body=data.lateStory.gatherBroadcast;
             else
             {
                 GenerateDailyErasureNews(data);

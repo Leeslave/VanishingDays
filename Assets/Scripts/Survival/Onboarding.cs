@@ -19,7 +19,7 @@ namespace VanishingDays
         public void SkipTutorial() { TutorialActive=false; }
         public bool ViewTutorialTopic(int step)
         {
-            if(!TutorialActive || !CanAct || HasLifeNotice || step<2 || step>5 || (TutorialViewed&(1<<step))!=0) return false;
+            if(!TutorialActive || !CanAct || HasLifeNotice || step<2 || step>4 || (TutorialViewed&(1<<step))!=0) return false;
             TutorialViewed|=1<<step; return true;
         }
         public bool AdvanceCompletedTutorial()
@@ -28,6 +28,12 @@ namespace VanishingDays
             while(TutorialStep>=1 && TutorialStep<=5 && CanAdvanceTutorial)
             { AdvanceTutorial();changed=true; }
             return changed;
+        }
+        public void CompleteSleepPractice()
+        {
+            if(!TutorialActive || !CanAct || HasLifeNotice || TutorialStep!=5) return;
+            TutorialViewed|=1<<5;
+            AdvanceTutorial();
         }
         public bool CanAdvanceTutorial => TutorialActive && CanAct && !HasLifeNotice && (TutorialStep==0 || TutorialStep==1 && NeighborStage>0 || TutorialStep>=2 && TutorialStep<=5 && (TutorialViewed&(1<<TutorialStep))!=0);
         public bool AdvanceTutorial()

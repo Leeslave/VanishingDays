@@ -8,7 +8,7 @@ namespace VanishingDays
     [Serializable] public class CraftDefinition
     {
         public string id,name,category,description,result,requiresFacility;
-        public int amount=1,hours; public bool facility;
+        public int amount=1,hours,minWorkbench; public bool facility;
         public ItemStack[] ingredients;
     }
     [Serializable] public class CraftingCatalog
@@ -27,7 +27,7 @@ namespace VanishingDays
             var ids=new HashSet<string>();
             foreach(var recipe in recipes)
             {
-                if(recipe==null || string.IsNullOrWhiteSpace(recipe.id) || !ids.Add(recipe.id) || string.IsNullOrWhiteSpace(recipe.name) || string.IsNullOrWhiteSpace(recipe.description) || recipe.hours<0 || recipe.hours==0 && recipe.id!="collect_water" && recipe.id!="purify_water" || recipe.category!="weapons" && recipe.category!="living" || recipe.ingredients==null || !recipe.facility && (data.Item(recipe.result)==null || recipe.amount<1)) throw new InvalidOperationException("Invalid crafting recipe.");
+                if(recipe==null || string.IsNullOrWhiteSpace(recipe.id) || !ids.Add(recipe.id) || string.IsNullOrWhiteSpace(recipe.name) || string.IsNullOrWhiteSpace(recipe.description) || recipe.hours<0 || recipe.hours==0 && recipe.id!="collect_water" || recipe.minWorkbench<0 || recipe.minWorkbench>3 || recipe.category!="weapons" && recipe.category!="living" && recipe.category!="relay" || recipe.ingredients==null || !recipe.facility && (data.Item(recipe.result)==null || recipe.amount<1)) throw new InvalidOperationException("Invalid crafting recipe.");
                 foreach(var cost in recipe.ingredients) if(cost==null || data.Item(cost.id)==null || cost.amount<1 || recipe.ingredients.Count(x=>x.id==cost.id)!=1) throw new InvalidOperationException("Invalid crafting ingredients.");
                 if(recipe.ingredients.Length==0 && recipe.id!="collect_water" && recipe.id!="gather_water") throw new InvalidOperationException("Crafting requires materials.");
                 if(!string.IsNullOrEmpty(recipe.requiresFacility) && (Find(recipe.requiresFacility)==null || !Find(recipe.requiresFacility).facility || recipe.requiresFacility==recipe.id)) throw new InvalidOperationException("Invalid crafting facility requirement.");
@@ -40,12 +40,16 @@ namespace VanishingDays
         public bool HasFacility(string id) => InstalledFacilities.Contains(id);
         public int SleepMentalRecovery => HasFacility("bedroll")?3:2;
         public int SleepinessRecovery => HasFacility("bedroll")?16:12;
-        public bool HasWeapon(SurvivalDefinitions data) => Equipment.Exists(x=>data.Item(x).strength>0);
+        public int WorkbenchLevel => HasFacility("workbench3")?3:HasFacility("workbench2")?2:HasFacility("workbench")?1:0;
+        ItemDefinition EquippedWeapon(SurvivalDefinitions data) => Equipment.Select(data.Item).FirstOrDefault(item=>item?.strength>0);
+        public bool HasWeapon(SurvivalDefinitions data) => EquippedWeapon(data)!=null;
+        public bool HasCraftPrerequisites(CraftDefinition recipe) => WorkbenchLevel>=recipe.minWorkbench &&
+            (string.IsNullOrEmpty(recipe.requiresFacility) || HasFacility(recipe.requiresFacility));
         public bool CanCraft(string id,SurvivalDefinitions data)
         {
             var recipe=data.crafting.Find(id);
             if(id=="collect_water") return CanCollectWater;
-            return CanAct && CurrentLocation=="home" && recipe!=null && (id!="boil_water" || HomeStorage.Count("burner")>0) && (!recipe.facility || !HasFacility(id)) && (string.IsNullOrEmpty(recipe.requiresFacility) || HasFacility(recipe.requiresFacility)) && HomeStorage.Has(recipe.ingredients);
+            return CanAct && CurrentLocation=="home" && recipe!=null && (recipe.category!="relay" || RelayActive) && (id!="boil_water" || HomeStorage.Count("burner")>0) && (!recipe.facility || !HasFacility(id)) && HasCraftPrerequisites(recipe) && HomeStorage.Has(recipe.ingredients);
         }
         public string Craft(string id,SurvivalDefinitions data)
         {
@@ -56,7 +60,12 @@ namespace VanishingDays
             AdvanceTime(recipe.hours,data);
             if(IsGameOver) return Report("제작 도중 쓰러졌다. 사용한 재료로 작업을 마치지 못했다.");
             int amount=id=="purify_water"?PurifiedWaterAmount:recipe.amount;
-            if(recipe.facility) InstalledFacilities.Add(id); else HomeStorage.Add(recipe.result,amount);
+            if(recipe.facility)
+            {
+                InstalledFacilities.Add(id);
+                if(id=="water_collector") CollectorGuideStep=1;
+            }
+            else HomeStorage.Add(recipe.result,amount);
             string text=recipe.facility?recipe.name+"를 집에 설치했다.":data.Item(recipe.result).name+" "+data.Quantity(recipe.result,amount)+"을 만들어 집에 보관했다.";
             RecordFact("story",text); return Report(text);
         }

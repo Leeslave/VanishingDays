@@ -8,6 +8,8 @@ namespace VanishingDays.Editor
 {
     public static class PrototypeBuilder
     {
+        static readonly string[] PlayerScenes={"Assets/Scenes/Prototype.unity","Assets/Scenes/StoryReader.unity"};
+
         [MenuItem("Vanishing Days/Validate game rules")]
         public static void Validate() { SurvivalChecks.Validate(); RadioStoryChecks.Validate(); WorldProgressionChecks.Validate(); VitalsChecks.Validate(); ErasureNewsChecks.Validate(); StorageChecks.Validate(); SleepTradeChecks.Validate(); WaterChecks.Validate(); DailyLifeChecks.Validate(); CraftingChecks.Validate(); WaterAccessChecks.Validate(); OnboardingChecks.Validate(); SurvivalBalanceChecks.Validate(); LateStoryChecks.Validate(); DialogueChecks.Validate(); BrokenPathChecks.Validate(); }
 
@@ -27,9 +29,9 @@ namespace VanishingDays.Editor
             PlayerSettings.WebGL.compressionFormat=WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback=true;
             const string folder="Builds/WebGL";
-            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=new[]{"Assets/Scenes/Prototype.unity"}, locationPathName=folder, target=BuildTarget.WebGL, options=BuildOptions.None });
+            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=PlayerScenes, locationPathName=folder, target=BuildTarget.WebGL, options=BuildOptions.None });
             if(report.summary.result!=BuildResult.Succeeded) throw new Exception("Web build failed: "+report.summary.result);
-            File.Copy("Assets/Resources/Fonts/OFL.txt",Path.Combine(folder,"NanumGothic-OFL.txt"),true);
+            CopyFontLicenses(folder);
             Debug.Log("VD_WEB_BUILD_OK: "+report.summary.outputPath);
         }
         static void Build(bool verification)
@@ -47,19 +49,29 @@ namespace VanishingDays.Editor
             PlayerSettings.resizableWindow=true;
             string folder=verification?"Builds/WindowsVerification":"Builds/Windows";
             Directory.CreateDirectory(folder);
-            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=new[]{"Assets/Scenes/Prototype.unity"}, locationPathName=folder+"/VanishingDays.exe", target=BuildTarget.StandaloneWindows64, options=BuildOptions.Development, extraScriptingDefines=verification?new[]{"VD_UI_VERIFICATION"}:new string[0] });
+            var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=PlayerScenes, locationPathName=folder+"/VanishingDays.exe", target=BuildTarget.StandaloneWindows64, options=BuildOptions.Development, extraScriptingDefines=verification?new[]{"VD_UI_VERIFICATION"}:new string[0] });
             if(report.summary.result!=BuildResult.Succeeded) throw new Exception("Build failed: "+report.summary.result);
-            File.Copy("Assets/Resources/Fonts/OFL.txt",Path.Combine(folder,"NanumGothic-OFL.txt"),true);
+            CopyFontLicenses(folder);
             Debug.Log("VD_BUILD_OK: "+report.summary.outputPath);
         }
 
+        static void CopyFontLicenses(string folder)
+        {
+            File.Copy("Assets/Resources/Fonts/OFL.txt",Path.Combine(folder,"NanumGothic-OFL.txt"),true);
+            File.Copy("Assets/Resources/Fonts/NanumMyeongjo-OFL.txt",Path.Combine(folder,"NanumMyeongjo-OFL.txt"),true);
+        }
         static void ValidateKoreanFont()
         {
-            const string path="Assets/Resources/Fonts/NanumGothic-Regular.ttf";
+            ValidateKoreanFont("NanumGothic-Regular");
+            ValidateKoreanFont("NanumMyeongjo-Regular");
+        }
+        static void ValidateKoreanFont(string name)
+        {
+            string path="Assets/Resources/Fonts/"+name+".ttf";
             var importer=AssetImporter.GetAtPath(path) as TrueTypeFontImporter;
             if(importer==null) throw new InvalidOperationException("Korean font is missing: "+path);
             if(!importer.includeFontData) { importer.includeFontData=true; importer.SaveAndReimport(); }
-            var font=Resources.Load<Font>("Fonts/NanumGothic-Regular");
+            var font=Resources.Load<Font>("Fonts/"+name);
             if(font==null || !font.dynamic) throw new InvalidOperationException("Korean font must be imported as a dynamic font.");
             foreach(char character in "소멸일지한글기록자가나다힣")
                 if(!font.HasCharacter(character)) throw new InvalidOperationException("Korean font is missing a glyph: "+character);

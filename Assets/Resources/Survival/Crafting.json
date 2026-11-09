@@ -69,6 +69,7 @@
     },
     {
       "id": "nail_bat",
+      "minWorkbench": 1,
       "name": "못 박힌 방망이",
       "category": "weapons",
       "hours": 2,
@@ -92,6 +93,7 @@
     },
     {
       "id": "pipe_club",
+      "minWorkbench": 1,
       "name": "쇠파이프 곤봉",
       "category": "weapons",
       "hours": 2,
@@ -115,6 +117,7 @@
     },
     {
       "id": "scrap_spear",
+      "minWorkbench": 2,
       "name": "고철 창",
       "category": "weapons",
       "hours": 2,
@@ -138,6 +141,7 @@
     },
     {
       "id": "machete",
+      "minWorkbench": 2,
       "name": "손잡이 칼날",
       "category": "weapons",
       "hours": 3,
@@ -162,6 +166,7 @@
     },
     {
       "id": "hatchet",
+      "minWorkbench": 2,
       "name": "간이 도끼",
       "category": "weapons",
       "hours": 3,
@@ -190,6 +195,7 @@
     },
     {
       "id": "reinforced_blade",
+      "minWorkbench": 3,
       "name": "보강 칼날",
       "category": "weapons",
       "hours": 4,
@@ -218,7 +224,7 @@
     },
     {
       "id": "workbench",
-      "name": "작업대",
+      "name": "작업대 Lv. 1",
       "category": "living",
       "hours": 3,
       "ingredients": [
@@ -241,6 +247,7 @@
     },
     {
       "id": "water_filter",
+      "minWorkbench": 1,
       "name": "간이 정수기",
       "category": "living",
       "hours": 2,
@@ -264,7 +271,7 @@
       ],
       "amount": 1,
       "facility": true,
-      "description": "간이 정수기 · 수율 50%. 혼탁한 물 4병을 생수 2병으로 즉시 정수한다. 상위 정수기로 업그레이드 가능."
+      "description": "간이 정수기 · 수율 50%. 혼탁한 물 4병을 1시간에 생수 2병으로 정수한다. 상위 정수기로 업그레이드 가능."
     },
     {
       "id": "water_collector",
@@ -327,7 +334,7 @@
       "id": "purify_water",
       "name": "생수 정수",
       "category": "living",
-      "hours": 0,
+      "hours": 1,
       "ingredients": [
         {
           "id": "raw_water",
@@ -337,7 +344,7 @@
       "amount": 2,
       "result": "water",
       "requiresFacility": "water_filter",
-      "description": "혼탁한 물 4병을 즉시 정수한다. 간이 2병 / 그럴듯한 3병 / 괜찮은 4병. 업그레이드로 손실을 줄인다."
+      "description": "혼탁한 물 4병을 1시간 동안 정수한다. 간이 2병 / 그럴듯한 3병 / 괜찮은 4병. 업그레이드로 손실을 줄인다."
     },
     {
       "id": "make_bandage",
@@ -360,6 +367,7 @@
     },
     {
       "id": "water_filter2",
+      "minWorkbench": 2,
       "name": "그럴듯한 정수기",
       "requiresFacility": "water_filter",
       "category": "living",
@@ -388,6 +396,7 @@
     },
     {
       "id": "water_filter3",
+      "minWorkbench": 3,
       "name": "괜찮은 정수기",
       "requiresFacility": "water_filter2",
       "category": "living",
@@ -455,6 +464,128 @@
       "amount": 1,
       "result": "stretcher",
       "description": "걷지 못하는 사람을 옮길 들것 1개를 만든다."
+    },
+    {
+      "id": "relay_filter",
+      "minWorkbench": 1,
+      "result": "relay_filter",
+      "name": "거점 정수기",
+      "description": "거점에서 식수 소모를 줄이는 설비.",
+      "category": "relay",
+      "hours": 2,
+      "amount": 1,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 2
+        },
+        {
+          "id": "cloth",
+          "amount": 2
+        },
+        {
+          "id": "scrap",
+          "amount": 1
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "relay_antenna",
+      "minWorkbench": 2,
+      "result": "relay_antenna",
+      "name": "간이 안테나",
+      "description": "교신을 유지하는 큰 설비. 한 번에 하나만 운반한다.",
+      "category": "relay",
+      "hours": 3,
+      "amount": 1,
+      "ingredients": [
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "cord",
+          "amount": 2
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "relay_shelf",
+      "minWorkbench": 1,
+      "result": "relay_shelf",
+      "name": "저장 선반",
+      "description": "거점의 물자 보관 한도를 늘리는 선반.",
+      "category": "relay",
+      "hours": 2,
+      "amount": 1,
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 4
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "workbench2",
+      "name": "작업대 Lv. 2",
+      "category": "living",
+      "description": "날을 다듬고 틀을 고정해 칼날 무기와 그럴듯한 정수기를 해금한다.",
+      "hours": 3,
+      "facility": true,
+      "requiresFacility": "workbench",
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 3
+        },
+        {
+          "id": "tools",
+          "amount": 1
+        },
+        {
+          "id": "scrap",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "id": "workbench3",
+      "name": "작업대 Lv. 3",
+      "category": "living",
+      "description": "지그와 받침을 보강해 강화 무기와 괜찮은 정수기를 해금한다.",
+      "hours": 4,
+      "facility": true,
+      "requiresFacility": "workbench2",
+      "ingredients": [
+        {
+          "id": "wood",
+          "amount": 4
+        },
+        {
+          "id": "tools",
+          "amount": 2
+        },
+        {
+          "id": "scrap",
+          "amount": 4
+        },
+        {
+          "id": "tape",
+          "amount": 2
+        }
+      ]
     }
   ]
 }

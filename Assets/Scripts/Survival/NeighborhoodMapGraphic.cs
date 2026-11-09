@@ -16,9 +16,11 @@ namespace VanishingDays
         }
         public string CurrentLocation;
         public string[] VisibleLocations=new string[0];
+        public string[] ErasedLocations=new string[0];
+        public (string from,string to,string status)[] RelayRoutes=System.Array.Empty<(string,string,string)>();
         public static Vector2 Position(string id)
         {
-            switch(id) { case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); case "relay_room":return new Vector2(.33f,.27f); case "sp_station":return new Vector2(.84f,.46f); case "construction_site":return new Vector2(.33f,.6f); case "seongnae_bridge":return new Vector2(.68f,.3f); default:return new Vector2(.84f,.18f); }
+            switch(id) { case "soup_house":return new Vector2(.30f,.86f); case "river_post":return new Vector2(.68f,.49f); case "rescue_post":return new Vector2(.84f,.08f); case "home":return new Vector2(.12f,.73f); case "store":return new Vector2(.51f,.73f); case "empty_house":return new Vector2(.16f,.18f); case "supply_site":return new Vector2(.84f,.73f); case "pharmacy":return new Vector2(.51f,.18f); case "hardware":return new Vector2(.12f,.46f); case "shelter":return new Vector2(.51f,.46f); case "relay_room":return new Vector2(.33f,.27f); case "sp_station":return new Vector2(.84f,.46f); case "construction_site":return new Vector2(.33f,.6f); case "seongnae_bridge":return new Vector2(.68f,.3f); default:return new Vector2(.84f,.18f); }
         }
         VertexHelper mesh;
         Vector2 Point(float x,float y) => new Vector2(rectTransform.rect.xMin+x*rectTransform.rect.width,rectTransform.rect.yMax-y*rectTransform.rect.height);
@@ -60,6 +62,24 @@ namespace VanishingDays
             Line(Point(.70f,.55f),Point(.73f,.19f),8,road);
             // Uncertain edges of the hand-kept map.
             for(int i=0;i<20;i++) { float w=(float)random.NextDouble()*.13f; Block(0,i*.05f,w,.05f,new Color32(12,18,20,190)); Block(1-w,i*.05f,w,.05f,new Color32(12,18,20,190)); }
+            foreach(var edge in RelayRoutes)
+            {
+                var a=Position(edge.from); var b=Position(edge.to);
+                var tint=edge.status=="끊김"?new Color32(147,74,60,230):edge.status=="위험"?new Color32(192,139,80,230):new Color32(108,179,169,230);
+                if(edge.status=="끊김")
+                {
+                    var start=Vector2.Lerp(a,b,.42f); var end=Vector2.Lerp(a,b,.58f);
+                    Line(Point(a.x,a.y),Point(start.x,start.y),5,tint);
+                    Line(Point(end.x,end.y),Point(b.x,b.y),5,tint);
+                }
+                else Line(Point(a.x,a.y),Point(b.x,b.y),5,tint);
+            }
+            foreach(string id in ErasedLocations)
+            {
+                var p=Position(id);
+                Block(p.x-.044f,p.y-.042f,.088f,.084f,new Color32(24,29,29,255));
+                Ring(Point(p.x,p.y),29,3,new Color32(130,99,83,255));
+            }
             foreach(string id in VisibleLocations)
             {
                 Vector2 p=Position(id),c=Point(p.x,p.y); bool current=id==CurrentLocation;

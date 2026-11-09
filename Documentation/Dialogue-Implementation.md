@@ -55,9 +55,26 @@ id: `donglim`, `jiwoo`, `seokhyeon`, `yeongsuk`, `neighbor`, 그 외 인물은 `
 - 검증 플레이어 `-vdDialogue`: 라디오(C) → 공황(A 넘김·선택지 숨김 → 다 읽은 뒤 선택지) → 구조(B 넘김·지난 대화) → 동림 소개 → 후반 방송 장면(C) → 후반 대화 장면(B) 통과. 스크린샷은 `Builds/DialogueVerification/`.
 - 기존 UI 검사 `-vdLife`, `-vdQa`, `-vdInterfaceRepair`, `-vdTutorial`, `-vdBalance`, `-vdStorage` 통과. 자동 검사의 버튼 클릭은 숨겨진 선택지를 찾지 못하면 장면을 끝까지 넘긴 뒤 다시 찾는다. `-vdQa`의 방송 원문 검사는 수신 기록이 줄 단위로 나뉘었으므로 "모든 줄이 화면에 있는가"로 바꿨다.
 - `-vdCraft`, `-vdErasure`, `-vdSupply`, `-vdSmoke`는 이번 변경 전 코드에서도 같은 지점에서 실패한다(변경을 빼고 다시 빌드해 확인). `-vdSmoke`는 새 게임 난수 시드에 따라 실패 지점이 달라진다.
+- 5막 본편 연결 작업에서 이 네 검사도 현재 UI에 맞춰 갱신했고 모두 통과했다. [최신 검증 기록](StoryRestructure-v2.md#9-검증-기록)
 
-## 남은 것
+## 본편 에셋
 
-- 인물 초상 그림 5종(목탄). 현재는 실루엣 자리표시.
-- 명조 계열 글꼴은 시안에서만 썼다. 게임은 나눔고딕 그대로다. 바꾸려면 글꼴 파일 추가가 필요하다.
-- 3막 「끊어진 길」 대본을 쓸 때 무전 대화는 `[무전] 이름: “…”` 표기를 쓴다.
+- 내장 ImageGen으로 동림·지우·석현·영숙·노인 초상을 한 장씩 제작해 `Assets/Resources/Art/Portraits/`에 적용했다. 낯선 화자에는 기존 실루엣을 쓴다.
+- 공통 프롬프트는 2031년 서울 생존자의 정사각형 상반신, 어두운 배경, 거친 목탄과 흑연 해칭, 잿빛 종이 질감, 글자 없이 얼굴이 선명한 구도였다. 동림은 짧은 머리와 구조 작업복, 지우는 단발과 통신 헤드셋, 석현은 거친 머리와 작업 재킷, 영숙은 묶은 머리와 조끼, 노인은 흰머리와 카디건으로 구분했다.
+- 대면 대사와 일지 본문은 나눔명조를 쓰고, 버튼·상태와 무전 기록은 나눔고딕을 쓴다. 글꼴과 OFL은 프로젝트 및 빌드에 포함한다. [나눔명조 원본](https://github.com/google/fonts/tree/main/ofl/nanummyeongjo)
+- 3막 대본의 무전은 `[무전] 이름: “…”` 표기를 쓴다.
+
+
+### 초상 생성 프롬프트
+
+```text
+Create a single square in-game dialogue portrait for the Korean text survival game Vanishing Days, set in a deserted Seoul in 2031. Subject: {person}. Framing: one head and shoulders, centered, face clearly legible and occupying most of the square; a little negative space around the hair. Restrained hand-rendered black charcoal and graphite on aged warm gray paper, rough hatch strokes, broad smoky shadows, paper tooth, documentary realism. Use charcoal gray, black, and neutral dusty gray only. Plain near-black charcoal backdrop with soft vignette. Character portrait asset, no scene, no frame, no lettering, no numbers or watermark.
+```
+
+| 파일 | `{person}` |
+|---|---|
+| `donglim.png` | a Korean man in his thirties, a civilian rescue worker, cropped black hair, tired steady gaze, worn rescue work jacket |
+| `jiwoo.png` | a young Korean woman in her twenties, an alert communications dispatcher with short practical hair, worn zip jacket, looking up from a radio headset resting on her collar |
+| `seokhyeon.png` | a Korean man in his thirties, a former independent video reporter, slightly unkempt hair, light stubble, dark utility jacket, watchful expression |
+| `yeongsuk.png` | a Korean woman in her late fifties, a community kitchen volunteer, hair drawn back, practical padded vest over shirt, firm and approachable expression |
+| `neighbor.png` | an elderly Korean man in his seventies, deeply lined face, wispy grey hair, worn sweater and cardigan, quiet attentive expression |

@@ -72,7 +72,7 @@ namespace VanishingDays.Editor
             check(s.DoorLevel==3 && s.HomeRaidRisk(data)<risk && s.HomeStorage.Count("wood")==11 && s.HomeStorage.Count("tools")==4,"Door costs/protection wrong.");
             hour=s.hour; s.InstallSecurity("door3",data); check(s.hour==hour && s.HomeStorage.Count("wood")==11,"Door upgrade charged twice.");
             saves.Save(s); check(saves.TryLoad(out var restored,out _) && restored.DoorLevel==3 && restored.DongrimMeetings==4 && restored.LootPercent("store",data)==s.LootPercent("store",data),"World/door save round trip failed.");
-            var legacy=FirstMeeting(data); legacy.schemaVersion=4; legacy.Locations.RemoveAll(x=>x.id=="pharmacy" || x.id=="hardware" || x.id=="shelter" || x.id=="relay_room" || x.id=="sp_station" || x.id=="construction_site" || x.id=="seongnae_bridge");
+            var legacy=FirstMeeting(data); legacy.schemaVersion=4; legacy.Locations.RemoveAll(x=>x.id!="home" && x.id!="store" && x.id!="empty_house" && x.id!="school" && x.id!="supply_site");
             legacy.Locations.Find(x=>x.id=="store").remaining.Remove("tuna",1); legacy.Locations.Find(x=>x.id=="store").searches=1; legacy.InstalledSecurity.Add("analog");
             legacy.day=7; File.WriteAllText(path,JsonUtility.ToJson(legacy));
             check(saves.TryLoad(out var migrated,out _) && migrated.schemaVersion==13 && migrated.Locations.Count==data.locations.Length && migrated.TotalDongrimMeetings==1 && migrated.NextDongrimDay==7,"v4 completed-story migration failed.");

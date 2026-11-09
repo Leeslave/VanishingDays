@@ -18,8 +18,9 @@ namespace VanishingDays.Editor
             // Face to face: speech lines, with the player's own lines recognised by nickname.
             var rescue=ScriptBlocks.Parse(radio.rescue.Replace("{PlayerNickname}","기록자"),"기록자");
             Expect(ScriptBlocks.PresentationFor(rescue)==ScenePresentation.Scene,"crowd rescue should be a face-to-face scene");
-            Expect(rescue.Any(x=>x.Kind==ScriptBlockKind.Speech && x.IsPlayer) && rescue.Any(x=>x.Kind==ScriptBlockKind.Speech && x.Speaker=="남자" && !x.IsPlayer),"rescue speakers not split into player and stranger");
-            Expect(Mode(radio.introduction.Replace("{PlayerNickname}","기록자"))==ScenePresentation.Scene,"Dongrim introduction should be a scene");
+            Expect(rescue.Any(x=>x.Kind==ScriptBlockKind.Speech && x.Speaker=="남자" && !x.IsPlayer),"the stranger's rescue speech was not recognised");
+            var introduction=ScriptBlocks.Parse(radio.introduction.Replace("{PlayerNickname}","기록자"),"기록자");
+            Expect(ScriptBlocks.PresentationFor(introduction)==ScenePresentation.Scene && introduction.Any(x=>x.IsPlayer),"Dongrim introduction did not recognise the player");
 
             // Narration that ends in a choice: the journal page.
             Expect(Mode(radio.panic)==ScenePresentation.Journal,"crowd panic should be journal narration");
@@ -31,7 +32,8 @@ namespace VanishingDays.Editor
             Expect(ScriptBlocks.PresentationFor(blocks)==ScenePresentation.Radio,"false report should be a radio scene");
             var broadcast=blocks.First(x=>x.Kind==ScriptBlockKind.Broadcast);
             Expect(broadcast.Meta.Contains("확인 수준") && broadcast.Text.StartsWith("“주민회관"),"broadcast source and text not split: "+broadcast.Meta+" / "+broadcast.Text);
-            Expect(Mode(data.lateStory.beats.First(x=>x.id=="seokhyeon_reports").body)==ScenePresentation.Radio,"Seokhyeon's report should be a radio scene");
+            var signal=ScriptBlocks.Parse(data.lateStory.beats.First(x=>x.id=="seokhyeon_reports").body);
+            Expect(signal.Any(x=>x.Kind==ScriptBlockKind.Broadcast && x.Text.StartsWith("이석현..")) && ScriptBlocks.PresentationFor(signal)==ScenePresentation.Scene,"the signal and the conversation about it were not kept distinct");
             var talk=ScriptBlocks.Parse("[무전] 한지우: “동림 씨, 들려요?”\n\n다리 건너편은 조용했다.");
             Expect(talk[0].Kind==ScriptBlockKind.Radio && talk[0].Speaker=="한지우" && ScriptBlocks.PresentationFor(talk)==ScenePresentation.Radio,"radio talk convention not parsed");
 
@@ -45,7 +47,7 @@ namespace VanishingDays.Editor
 
             // Every scripted speaker either has a portrait slot or is a voice without a face.
             foreach(var beat in data.lateStory.beats)
-                foreach(var block in ScriptBlocks.Parse(beat.body+"\n\n"+beat.bodyIf+"\n\n"+beat.bodyElse))
+                foreach(var block in ScriptBlocks.Parse((beat.body+"\n\n"+beat.bodyIf+"\n\n"+beat.bodyElse).Replace("{PlayerNickname}","기록자")))
                     if(block.Kind==ScriptBlockKind.Speech) Expect(block.Speaker.Length<=8 && !block.Speaker.Contains("“"),"suspicious speaker in "+beat.id+": "+block.Speaker);
             Debug.Log("VD_DIALOGUE_CHECKS_OK: face-to-face scenes, journal narration, radio broadcasts and radio talk are told apart.");
         }

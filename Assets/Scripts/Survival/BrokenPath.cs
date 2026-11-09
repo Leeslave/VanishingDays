@@ -106,6 +106,12 @@ namespace VanishingDays
         }
         public BrokenPathScene CurrentBrokenPathScene(SurvivalDefinitions data) => BrokenPathScenePending?data.brokenPath.Scene(BrokenPath.Scene):null;
 
+        void StartBrokenPath()
+        {
+            BrokenPath=new BrokenPathProgress{Stage=1,Scene="core_choice"};
+            Note("[3막 · 끊어진 길] 중계실에서 구조 요청 두 건을 받았다.");
+        }
+
         public string ChooseBrokenPath(int index,SurvivalDefinitions data)
         {
             var scene=CurrentBrokenPathScene(data);
@@ -125,7 +131,8 @@ namespace VanishingDays
             {
                 p.Scene=""; p.Stage=2;
                 p.Yard=new Inventory(); foreach(var stack in d.yard) p.Yard.Add(stack.id,stack.amount);
-                if(!LateFlags.Contains("broken_path")) LateFlags.Add("broken_path");
+                UnlockLateStory("broken_path",data);
+                UnlockLateStory("construction_site",data);
                 RecordFact("story","성내천 보행교 가운데가 사라져 동림이 건너편에 고립됐다.");
                 return Report(d.hint);
             }
@@ -149,6 +156,7 @@ namespace VanishingDays
             if(action.StartsWith("next:")) { p.Scene=action.Substring(5); return lastReport; }
             // finish
             p.Scene=""; p.Stage=4;
+            if(CurrentBeat(data)?.id=="core_choice") AdvanceLateStory(data);
             string summary=p.Outcome=="A1"?"동림을 잃었다. 보호소에서 "+p.RescuedCount+"명을 데려왔다.":p.Outcome=="A2"?"동림과 함께 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 떠났다.":"동림을 "+(p.Outcome=="B_Light"?"데려왔다.":"중상인 채로 데려왔다.")+" 영숙 씨는 돌아오지 않았다.";
             RecordFact("story","「끊어진 길」을 마쳤다. "+summary);
             return Report("[3막 · 끊어진 길] "+summary);
@@ -240,7 +248,11 @@ namespace VanishingDays
             if(BrokenPath.Yard==null) BrokenPath.Yard=new Inventory();
             BrokenPath.Scene=BrokenPath.Scene??""; BrokenPath.CoreChoice=BrokenPath.CoreChoice??""; BrokenPath.Method=BrokenPath.Method??"";
             BrokenPath.Outcome=BrokenPath.Outcome??""; BrokenPath.YeongsukState=BrokenPath.YeongsukState??"";
-            if(Locations==null) return;
+            if(LateFlags.Contains("broken_path") && !LateFlags.Contains("construction_site")) LateFlags.Add("construction_site");
+        }
+        public void UpgradeStoryLocations(SurvivalDefinitions data)
+        {
+            if(Locations==null || schemaVersion<5 || schemaVersion>13) return;
             foreach(var place in data.locations)
                 if(!Locations.Exists(x=>x!=null && x.id==place.id))
                 {
@@ -267,14 +279,17 @@ namespace VanishingDays
             s.Travel("home",data,()=>1);
             if(s.Companion!=CompanionStep.Completed) throw new InvalidOperationException("Act 3 test entry could not finish the first expedition.");
             // The later story waits behind act 3; the relay room is where the choice is made.
-            int resume=Array.FindIndex(data.lateStory.beats,x=>x.id=="erasing_each_other");
+            int resume=Array.FindIndex(data.lateStory.beats,x=>x.id=="core_choice");
             s.LateStep=resume>=0?resume:0; s.LateScenePending=false;
-            foreach(var flag in new[]{"relay_room"}) if(!s.LateFlags.Contains(flag)) s.LateFlags.Add(flag);
+            s.UnlockLateStory("relay_room",data);
+            s.UnlockLateStory("neighbor_moved",data);
+            s.UnlockLateStory("pharmacy",data);
+            s.Story.HasMetSeokhyeon=true;
             s.LateTrust=Math.Max(0,trust-s.CompanionTrust);
             s.day=21; s.hour=9; s.LateReadyDay=s.day;
             s.Vitals.Hunger=0; s.Thirst=0; s.HydrationHours=0; s.Sleepiness=0;
             s.HomeStorage.Add("water",6); s.Backpack.Add("water",2); s.HomeStorage.Add("cord",8); s.HomeStorage.Add("cloth",6); s.HomeStorage.Add("wood",4);
-            s.BrokenPath=new BrokenPathProgress{Stage=1,Scene="core_choice"};
+            s.StartBrokenPath();
             s.Note("[3막 테스트 진입] 중계실에서 동림과 석현이 기다린다.");
             return s;
         }

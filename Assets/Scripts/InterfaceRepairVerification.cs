@@ -29,12 +29,12 @@ namespace VanishingDays
             yield return null;Update();
             ClickGameButton("물품 열기");ClickGameButton("다음 안내 보기");
             ClickGameButton("지도 열기");ClickGameButton("다음 안내 보기");
-            ClickGameButton("수면 화면 열기");
+            ClickGameButton("수면 화면 열기"); ClickGameButton("6시간 잔다");
             if(state.TutorialActive || state.TutorialStep!=6 || state.hour!=startHour || state.RandomState!=rng)throw new Exception("Automatic lessons changed game time/RNG or failed to finish.");
-            ClickGameButton("생존 안내 완료");Save();
+            Save();
             if(!store.TryLoad(out var loaded,out _) || loaded.TutorialViewed!=state.TutorialViewed || loaded.TutorialStep!=6)throw new Exception("Completed lesson progress was lost on save.");
             state.BeginTutorial();page="tutorial";Render();ClickGameButton("안내 시작");
-            if(state.TutorialActive || state.TutorialStep!=6)throw new Exception("Completed lessons repeated on replay.");
+            if(state.TutorialActive || state.TutorialStep!=6)throw new Exception("Completed topics repeated on replay.");
             // Reproduce the pseudo-null reference from the reported Update stack trace.
             var destroyed=new GameObject("Destroyed selected object");EventSystem.current.SetSelectedGameObject(destroyed);
             DestroyImmediate(destroyed);Update();

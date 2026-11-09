@@ -98,7 +98,7 @@ namespace VanishingDays
         void ConstructionSitePage(LocationDefinition location)
         {
             var p=state.BrokenPath;
-            Label("3막 · 끊어진 길",48,462,804,36,22,Amber);
+            Label(p.Stage==0?"2막 · 자재 창고":"3막 · 끊어진 길",48,462,804,36,22,Amber);
             Label(location.name,48,498,804,56,38,Paper).fontStyle=FontStyle.Bold;
             Paragraph(string.IsNullOrEmpty(message)?location.description:message,568,196,24,true);
             if(!state.BrokenPathFieldWork)
@@ -200,6 +200,26 @@ namespace VanishingDays
             ClickGameButton("기록하고 계속");
             Expect(state.BrokenPath.Stage==4 && state.BrokenPath.Outcome.StartsWith("B_") && state.BrokenPath.YeongsukState=="Missing" && state.BrokenPath.SeokhyeonCoop,"route B result wrong");
             Debug.Log("VD_ACT3_UI_OK: core choice, radio call, surveys, plan with unknowns, carry limit, stacking, crafting, build, evacuation, A2 and "+state.BrokenPath.Outcome+" finished and saved.");
+            state.hour=8;
+            Go("shelter"); ClickGameButton("끊긴 연락처를 직접");
+            state.day=Math.Max(state.day,state.LateReadyDay); state.hour=8;
+            Go("sp_station"); ClickGameButton("수신 기록을 대조");
+            ClickGameButton("대조 결과를 기록"); ClickGameButton("교신 권한을 나눈다");
+            ClickGameButton("검증된 분산 안내");
+            Expect(state.RelayActive && state.CurrentAct(definitions)==4,"act 4 relay operation unavailable");
+            page="home"; Render(); ClickGameButton("아침 거점 운영");
+            yield return Shot("16-RELAY-MAP");
+            ClickGameButton("거점 점:pharmacy");
+            ClickGameButton("확인한 경로·수용 정보 방송");
+            ClickGameButton("거점 지도로 돌아가기");
+            ClickGameButton(definitions.Location("shelter").mapLabel);
+            ClickGameButton("담당자 배치 · 한지우");
+            ClickGameButton("거점 지도로 돌아가기");
+            yield return Shot("17-RELAY-PLAN");
+            ClickGameButton("오늘 방송 송출");
+            Expect(state.Relay.broadcasts==1 && state.Relay.plan.Count==0 && state.RelayNodeAt("shelter").staff=="jiwoo","relay plan did not submit");
+            Expect(Save() && store.TryLoad(out var relayRestored,out _) && relayRestored.Relay.broadcasts==1,"relay operation did not save");
+            Debug.Log("VD_RELAY_UI_OK: rescue outcome into the SP station, map nodes, two queued decisions, broadcast and saved operation.");
             yield return null; Application.Quit();
         }
 #endif

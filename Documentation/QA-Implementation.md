@@ -57,3 +57,15 @@ SnackAtlas 최종 프롬프트:
 
 A game inventory sprite sheet with exactly 3 columns and 1 row of equal square cells, wide landscape canvas 3:1. Muted warm ivory charcoal pencil realistic hand drawn Korean post apocalypse scavenging game, sparse amber accents. Uniform very dark blue grey background #121a1c. NO text, NO labels. LEFT cell a partly unwrapped chocolate bar with visible chocolate squares in brown foil; CENTER cell a red pull tab soda can with condensation; RIGHT cell a compact granola energy bar partly in beige wrapper revealing oats nuts. Center each item within its cell, generous 15 percent padding, each completely separate. Match worn household survival illustrations.
 
+
+## 21일차 플레이 피드백
+
+- 대면 장면은 초상 비율을 보존하고 대사판을 아래쪽에 반투명으로 배치했다. 생활 화면은 스크롤되는 행동 목록을 제공하고, 라디오를 얻어도 03번 제작을 유지한다. 설치 설비는 옆집·동행과 같은 크기의 버튼이다.
+- 작업대 Lv. 1은 중급 둔기와 간이 정수기, Lv. 2는 칼날 계열과 그럴듯한 정수기, Lv. 3은 강화 칼날과 괜찮은 정수기를 연다. 정수 한 묶음은 1시간이고, 집수통 회수는 0시간이다. 기존에 설치한 설비는 이전 기록에서 계속 사용할 수 있다.
+- 보통 이동에서 학교와 주요 거점까지 최대 2시간, 학교 수색은 회당 2시간으로 조정했다. 학교 기준 08:00 출발 → 수색 두 번 → 16:00 귀가다. 동행 약속에는 다음 이야기 장소와 순찰 날짜를 함께 표시한다.
+- 물품 전달에는 보상과 신뢰를 명시하고, 현장 확인은 철물점·학교·약국 등 장소별 일회성 요청으로 처리한다.
+- 무기를 들면 위협과 공격을 선택할 수 있다. 위협은 기존 탈출 확률에 25%p를 더하며 실패 시 물자를 잃는다. 공격은 탈출을 보장하고, 무기의 힘에 따라 상대의 부상과 재현의 정신력 손실을 구분한다.
+- 첫 생존 안내에서 버튼 설명과 시계 정지 상태의 수면 연습을 제공한다. 집수통을 새로 설치하면 식수 관리 → 물 확보 → 집수 시간 선택을 실제 버튼으로 따라간다. 집수 완료 알림 뒤에는 기존 화면이 보인다.
+- 시작·이어하기·게임 메뉴에서 별도 `StoryReader.unity`를 연다. 프롤로그, 1~5막과 분기 결과, 결말을 스크롤해 읽을 수 있다. 현재 생존 기록을 따로 열어 편집할 필요가 없다.
+- Unity 규칙 검사 16종, 오프닝 126개 단언, Windows UI 검사 13종, 브라우저 저장·입력 검사 3종을 통과했다. 검증 플레이어에서 스토리 열람 전후의 시간·난수·저장 파일이 동일함을 확인했다.
+- 일반 Windows와 WebGL 빌드를 완료했다. WebGL 로더 참조, Gzip 폴백, WebAssembly 유효성, 브라우저 저장 복구 설정을 확인했다.

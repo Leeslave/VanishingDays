@@ -4,7 +4,7 @@ namespace VanishingDays
 {
     public partial class SurvivalState
     {
-        public int CollectorCycleHours, CollectorElapsedHours;
+        public int CollectorCycleHours, CollectorElapsedHours, CollectorGuideStep;
         public bool CollectorNoticePending;
         public bool CollectorReady => CollectorCycleHours>0 && CollectorElapsedHours==CollectorCycleHours;
         public int CollectorCapacity => CollectorCycleHours*2;
@@ -16,7 +16,7 @@ namespace VanishingDays
         public string StartWaterCollection(int hours)
         {
             if(!CanStartCollector || hours!=2 && hours!=5 && hours!=10) return "집에서 빈 집수통에 2·5·10시간 집수를 설정할 수 있다.";
-            CollectorCycleHours=hours; CollectorElapsedHours=0; CollectorNoticePending=false;
+            CollectorCycleHours=hours; CollectorElapsedHours=0; CollectorNoticePending=false; CollectorGuideStep=0;
             return Report(hours+"시간 자동 집수를 시작했다. 외출·수면·다른 작업 중에도 모이며, 가득 차면 멈추고 알려준다. 설정에 시간은 들지 않는다.");
         }
         void TickWaterCollector()

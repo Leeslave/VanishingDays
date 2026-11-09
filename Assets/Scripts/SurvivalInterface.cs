@@ -69,8 +69,9 @@ namespace VanishingDays
             for(int i=0;i<tabs.Length;i++)
             {
                 int tab=i;bool enabled=home || i==0;
-                var chip=Pressable(tabs[i],48+i*204,698,192,60,()=>{waterTab=tab;message="";Render();},enabled,waterTab==i?Amber:Edge,waterTab==i?EmberDim:Panel);
-                Label(tabs[i],4,0,184,60,22,!enabled?Faint:waterTab==i?Amber:Paper,chip.transform).alignment=TextAnchor.MiddleCenter;
+                bool highlighted=waterTab==i || i==1 && state.CollectorGuideStep==2;
+                var chip=Pressable(tabs[i],48+i*204,698,192,60,()=>SelectWaterTab(tab),enabled,highlighted?Amber:Edge,highlighted?EmberDim:Panel);
+                Label(tabs[i],4,0,184,60,22,!enabled?Faint:highlighted?Amber:Paper,chip.transform).alignment=TextAnchor.MiddleCenter;
             }
             ScrollArea("Water management",780,592,out var content);float y=12;
             if(!string.IsNullOrEmpty(message))
@@ -84,12 +85,12 @@ namespace VanishingDays
                 if(!state.UnlimitedWater && state.Thirst==0)counts+="\n지금은 목마르지 않습니다.";
                 WaterAction(content,ref y,"water","지금 물을 마신다",counts,()=>Apply(state.DrinkWater(),"water"),state.CanDrink);
                 WaterNote(content,ref y,home?"집에서는 창고의 생수를 먼저 마십니다.\n외출 전에는 물품 또는 외출 준비에서 생수를 챙기세요.":"외출 중에는 소지한 생수만 마실 수 있습니다.\n집의 물자는 귀가한 뒤 사용할 수 있습니다.");
-                if(home)WaterAction(content,ref y,"raw_water","물 확보 방법 보기","생수가 부족하다면 생활용수를 모으거나 집수통을 사용하세요.",()=>{waterTab=1;message="";Render();},true);
+                if(home)WaterAction(content,ref y,"raw_water","물 확보 방법 보기","생수가 부족하다면 생활용수를 모으거나 집수통을 사용하세요.",()=>SelectWaterTab(1),true);
                 else WaterAction(content,ref y,"water","집으로 돌아갈 길 확인","이동 경로와 예상 소요 시간을 확인합니다.",()=>SelectLocation("home"),state.CanAct);
             }
             else if(waterTab==1)
             {
-                WaterAction(content,ref y,"raw_water","생활용수를 모은다","설비·재료 불필요 · 2시간\n혼탁한 물 2병을 얻습니다. 마시기 전에 끓이거나 정수하세요.",()=>Apply(state.Craft("gather_water",definitions),"water"),state.CanCraft("gather_water",definitions));
+                if(!state.HasFacility("water_collector")) ManualWaterGathering(content,ref y);
                 Label("자동 집수",20,y,764,42,30,Paper,content);y+=54;
                 WaterNote(content,ref y,state.CollectorStatus+"\n외출·수면 중에도 모입니다. 가득 차면 멈추며 회수는 0시간입니다.");
                 if(state.HasFacility("water_collector"))
@@ -100,7 +101,7 @@ namespace VanishingDays
                     for(int i=0;i<durations.Length;i++)
                     {
                         int hours=durations[i];
-                        var option=Pressable(hours+"시간 자동 집수 시작",20+i*250,62,240,62,()=>Apply(state.StartWaterCollection(hours),"water"),state.CanStartCollector,Edge,Panel,settings);
+                        var option=Pressable(hours+"시간 자동 집수 시작",20+i*250,62,240,62,()=>Apply(state.StartWaterCollection(hours),"water"),state.CanStartCollector,state.CollectorGuideStep==3?Amber:Edge,state.CollectorGuideStep==3?EmberDim:Panel,settings);
                         Label(hours+"시간",0,0,240,62,26,state.CanStartCollector?Amber:Faint,option.transform).alignment=TextAnchor.MiddleCenter;
                         Label("혼탁한 물 "+hours*2+"병",20+i*250,136,240,32,21,Muted,settings).alignment=TextAnchor.MiddleCenter;
                     }
@@ -108,15 +109,21 @@ namespace VanishingDays
                     WaterAction(content,ref y,"water_collector","집수통 물 회수",state.CollectorReady?"혼탁한 물 "+state.CollectorCapacity+"병을 집 창고로 옮깁니다. · 0시간":"집수통이 가득 차면 회수할 수 있습니다.",()=>Apply(state.CollectWater(),"water"),state.CanCollectWater);
                 }
                 else WaterAction(content,ref y,"water_collector","집수통 제작 보기","설치하면 원하는 시간 동안 물을 자동으로 모을 수 있습니다.",OpenWaterCrafting,state.CanAct);
+                if(state.HasFacility("water_collector")) ManualWaterGathering(content,ref y);
             }
             else if(waterTab==2)
             {
                 WaterAction(content,ref y,"burner","물을 끓인다","부르스타 사용 · 1시간\n혼탁한 물 2병 → 생수 2병",()=>Apply(state.Craft("boil_water",definitions),"water"),state.CanCraft("boil_water",definitions));
-                WaterAction(content,ref y,"water_filter","생수 정수",(state.WaterFilterLevel==0?"정수기 설치 필요":state.WaterFilterLevel+"단계 정수기 · 시간 소모 없음")+"\n혼탁한 물 4병 → 생수 "+state.PurifiedWaterAmount+"병",()=>Apply(state.Craft("purify_water",definitions),"water"),state.CanCraft("purify_water",definitions));
+                WaterAction(content,ref y,"water_filter","생수 정수",(state.WaterFilterLevel==0?"정수기 설치 필요":state.WaterFilterLevel+"단계 정수기 · "+definitions.crafting.Find("purify_water").hours+"시간")+"\n혼탁한 물 4병 → 생수 "+state.PurifiedWaterAmount+"병",()=>Apply(state.Craft("purify_water",definitions),"water"),state.CanCraft("purify_water",definitions));
                 WaterNote(content,ref y,"정수기 수율\n간이 50% · 그럴듯한 75% · 괜찮은 100%\n혼탁한 물은 그대로 마실 수 없습니다.");
             }
             else
             {
+                if(state.HasFacility("water_collector") && state.CanStartCollector)
+                {
+                    Button("집수 버튼 안내",20,y,764,58,()=>{state.CollectorGuideStep=1;Save();Render();},true,false,content);
+                    y+=70;
+                }
                 WaterNote(content,ref y,"집수통은 물을 모으고 정수기는 혼탁한 물을 식수로 바꿉니다.\n제작에 필요한 재료는 집 창고에 보관해 두세요.");
                 foreach(string id in new[]{"water_collector","water_filter","water_filter2","water_filter3"})
                 {
@@ -142,11 +149,42 @@ namespace VanishingDays
             Button(title,20,196+detailHeight-72,740,66,action,enabled,true,card);
             float height=286+detailHeight-72;card.sizeDelta=new Vector2(780,height);y+=height+20;
         }
+        void ManualWaterGathering(Transform content,ref float y)
+        {
+            WaterAction(content,ref y,"raw_water","생활용수를 모은다","설비·재료 불필요 · 2시간\n혼탁한 물 2병을 얻습니다. 마시기 전에 끓이거나 정수하세요.",()=>Apply(state.Craft("gather_water",definitions),"water"),state.CanCraft("gather_water",definitions));
+        }
+        void OpenWaterFromDock()
+        {
+            if(state.CurrentLocation=="home" && state.CollectorGuideStep>0)
+            {
+                if(state.CollectorGuideStep==1) { state.CollectorGuideStep=2; Save(); }
+                waterTab=state.CollectorGuideStep==3?1:0;
+            }
+            OpenStoryPage("water");
+        }
+        void SelectWaterTab(int tab)
+        {
+            if(tab==1 && state.CollectorGuideStep==2)
+            {
+                state.CollectorGuideStep=3;
+                Save();
+            }
+            waterTab=tab;
+            OpenStoryPage("water");
+        }
+        void CollectorGuideHint()
+        {
+            if(state.CollectorGuideStep==0 || state.CurrentLocation!="home") return;
+            string hint=state.CollectorGuideStep==1?"아래에서 ‘식수 관리’를 눌러 보세요.":
+                state.CollectorGuideStep==2?"식수 관리에서 ‘물 확보’를 눌러 보세요.":"‘물 확보’에서 2·5·10시간 중 하나를 눌러 집수를 시작하세요.";
+            var strip=Box("Collector guide",48,432,804,28,EmberDim);
+            Label("집수 안내 "+state.CollectorGuideStep+"/3 · "+hint,12,0,780,28,19,AmberText,strip);
+        }
         void CollectorNotification()
         {
             if(!state.CollectorNoticePending) return;
-            shortcuts=new System.Action[3];
-            Pressable("Collection notice scrim",0,0,900,1600,()=>{},true,Ink,new Color(0,0,0,.8f));
+            shortcuts=new System.Action[5];
+            Box("Collection notice scrim",0,0,900,1600,new Color(0,0,0,.28f)).GetComponent<Image>().raycastTarget=true;
             Box("Collection notice",48,560,804,450,Raised);
             Label("집수통이 가득 찼다",80,600,740,54,34,Amber);
             Label("혼탁한 물 "+state.CollectorCapacity+"병을 모았다.\n집에서 시간 소모 없이 회수할 수 있다.\n회수하기 전까지 집수는 멈춘다.",80,678,740,148,26,Paper);
@@ -179,7 +217,7 @@ namespace VanishingDays
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir,"03-WATER-ACCESS.png"));yield return null;
             ClickGameButton("생활");ClickGameButton("잠자기");ClickGameButton("6시간 잔다");
             if(state.NeedsSleepWarning)throw new System.Exception("Sleep warning did not clear through UI.");
-            if(!store.TryLoad(out var loaded,out _) || loaded.Thirst!=0 || loaded.Sleepiness!=0)throw new System.Exception("New actions did not save.");
+            if(!store.TryLoad(out var loaded,out string error) || loaded.Thirst!=6*definitions.Rates(state.Difficulty).thirstPerHour || loaded.Sleepiness!=0)throw new System.Exception("Hydration and sleep did not save: "+error);
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir,"04-RECOVERED.png"));yield return null;
             Debug.Log("VD_WATER_ACCESS_UI_OK: illustrated shelter, warnings, notification, gather, boil, drink, sleep and autosave.");
             Application.Quit();

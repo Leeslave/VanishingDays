@@ -19,7 +19,18 @@ namespace VanishingDays.Editor
             {
                 if(recipe.id=="collect_water") continue;
                 var s=fresh(); foreach(var cost in recipe.ingredients) s.HomeStorage.Add(cost.id,cost.amount);
+                if(recipe.category=="relay")
+                {
+                    check(!s.CanCraft(recipe.id,data),"Relay facility available before act 4: "+recipe.id);
+                    s.Relay.startDay=s.day;
+                }
                 if(!string.IsNullOrEmpty(recipe.requiresFacility)) s.InstalledFacilities.Add(recipe.requiresFacility);
+                if(recipe.minWorkbench>0)
+                {
+                    check(!s.CanCraft(recipe.id,data),"Recipe bypassed required workbench: "+recipe.id);
+                    foreach(string id in new[]{"workbench","workbench2","workbench3"}.Take(recipe.minWorkbench))
+                        if(!s.HasFacility(id)) s.InstalledFacilities.Add(id);
+                }
                 var before=data.items.ToDictionary(x=>x.id,x=>s.HomeStorage.Count(x.id)); int hours=s.day*24+s.hour; uint rng=s.RandomState;
                 check(s.CanCraft(recipe.id,data),"Recipe not craftable with requirements: "+recipe.id); s.Craft(recipe.id,data);
                 check(s.day*24+s.hour==hours+recipe.hours && s.RandomState==rng,"Crafting time/RNG wrong: "+recipe.id);
@@ -40,13 +51,13 @@ namespace VanishingDays.Editor
             state.Equip("machete",data); check(state.Strength(data)==0 && state.HomeStorage.Count("machete")==1,"Unequipping lost crafted weapon.");
             state.CurrentLocation="store";state.AwayFromHome=true;state.Backpack.Add("club",1);state.Backpack.Add("pipe_club",1);state.Equip("club",data);state.Equip("pipe_club",data);
             check(state.Backpack.Count("club")==1 && state.Strength(data)==4,"Away equipment replacement did not return old weapon to pack.");
-            state.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; state.AttackHungrySurvivor(data,()=>0);
-            check(state.Vitals.MentalCap==75,"Crafted weapon bypassed armed-resistance moral consequences.");
+            state.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; state.AttackHungrySurvivor(data);
+            check(state.Vitals.CurrentMental==92 && state.Vitals.MentalCap==100,"Crafted weapon did not apply the correct injury consequence.");
             state=fresh();state.HomeStorage.Add("club",1);state.Equip("club",data);state.HomeStorage.Add("cloth",2);state.HomeStorage.Add("tape",1);
             check(!state.CanCraft("wrapped_club",data),"Equipped weapon silently consumed as material.");state.Equip("club",data);state.Craft("wrapped_club",data);
             check(state.HomeStorage.Count("club")==0 && state.HomeStorage.Count("wrapped_club")==1,"Weapon upgrade did not conserve lower-tier weapon.");
             state=fresh();state.InstalledFacilities.AddRange(new[]{"water_collector","water_filter"});int water=state.HomeStorage.Count("water");state.StartWaterCollection(2);state.AdvanceTime(2,data);state.Craft("collect_water",data);state.Craft("purify_water",data);
-            check(state.HomeStorage.Count("raw_water")==0 && state.HomeStorage.Count("water")==water+2 && state.hour==10,"Collection/purification loop failed.");
+            check(state.HomeStorage.Count("raw_water")==0 && state.HomeStorage.Count("water")==water+2 && state.hour==11,"Collection/purification loop failed.");
             state=fresh();state.HomeStorage.Add("raw_water",1);state.HomeStorage.Remove("water",8);state.HydrationHours=state.WaterInterval(data)-1;state.AdvanceTime(1,data);
             check(state.Vitals.CurrentHP==490 && state.HomeStorage.Count("raw_water")==1,"Raw water was drunk without purification.");
             state=fresh();state.InstalledFacilities.Add("bedroll");state.Vitals.AdjustMental(-50);state.Sleepiness=100;state.Rest(data,false,8);

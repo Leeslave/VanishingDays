@@ -40,6 +40,7 @@ namespace VanishingDays
                     bool legacyVitals=restored!=null && restored.schemaVersion>=3 && restored.schemaVersion<=5;
                     if(restored?.PendingEncounter!=null && string.IsNullOrEmpty(restored.PendingEncounter.kind)) restored.PendingEncounter=null;
                     UpgradeLegacySession(restored,definitions);
+                    restored?.UpgradeStoryLocations(definitions);
                     if(restored?.schemaVersion==5)
                     {
                         if(restored.Vitals!=null) { restored.Vitals.CurrentMental=100; restored.Vitals.BaseMaxMental=100; }
@@ -55,6 +56,7 @@ namespace VanishingDays
                     restored?.UpgradeOnboarding();
                     restored?.UpgradeLateStory(definitions);
                     restored?.UpgradeBrokenPath(definitions);
+                    restored?.UpgradeCommunityProgress();
                     // Validate the original HP against the base maximum first so a
                     // corrupt save cannot be silently repaired into a valid state.
                     Validate(restored,definitions,legacyVitals);
@@ -77,13 +79,13 @@ namespace VanishingDays
             foreach(var location in data.locations)
             {
                 var matches=s.Locations.FindAll(x=>x!=null && x.id==location.id);
-                if(matches.Count!=1 || matches[0].searches<0) throw new InvalidDataException("Invalid location progress.");
+                if(matches.Count!=1 || matches[0].searches<0 || matches[0].erasedDay<0 || matches[0].erasedDay>s.day || matches[0].erasedDay>0 && (location.id=="home" || s.CurrentLocation==location.id || matches[0].remaining?.stacks?.Exists(x=>x.amount>0)==true)) throw new InvalidDataException("Invalid location progress.");
                 ValidateInventory(matches[0].remaining,data);
             }
             foreach(var id in s.Equipment) if(data.Item(id)==null || (data.Item(id).strength==0 && data.Item(id).defense==0) || s.Equipment.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid equipment.");
             if(s.Equipment.FindAll(x=>data.Item(x).strength>0).Count>1 || s.Equipment.FindAll(x=>data.Item(x).strength==0 && data.Item(x).defense>0).Count>1) throw new InvalidDataException("Multiple items in one equipment slot.");
             if(s.InstalledFacilities==null) throw new InvalidDataException("Missing crafting facilities.");
-            if(s.CollectorCycleHours!=0 && s.CollectorCycleHours!=2 && s.CollectorCycleHours!=5 && s.CollectorCycleHours!=10 || s.CollectorElapsedHours<0 || s.CollectorElapsedHours>s.CollectorCycleHours || s.CollectorCycleHours>0 && !s.HasFacility("water_collector") || s.CollectorNoticePending && !s.CollectorReady) throw new InvalidDataException("Invalid water collector.");
+            if(s.CollectorGuideStep<0 || s.CollectorGuideStep>3 || s.CollectorGuideStep>0 && (!s.HasFacility("water_collector") || s.CollectorCycleHours!=0) || s.CollectorCycleHours!=0 && s.CollectorCycleHours!=2 && s.CollectorCycleHours!=5 && s.CollectorCycleHours!=10 || s.CollectorElapsedHours<0 || s.CollectorElapsedHours>s.CollectorCycleHours || s.CollectorCycleHours>0 && !s.HasFacility("water_collector") || s.CollectorNoticePending && !s.CollectorReady) throw new InvalidDataException("Invalid water collector.");
             foreach(var id in s.InstalledFacilities) if(data.crafting.Find(id)==null || !data.crafting.Find(id).facility || s.InstalledFacilities.FindAll(x=>x==id).Count!=1 || !string.IsNullOrEmpty(data.crafting.Find(id).requiresFacility) && !s.HasFacility(data.crafting.Find(id).requiresFacility)) throw new InvalidDataException("Invalid crafting facility.");
             foreach(var id in s.InstalledSecurity) if(data.Security(id)==null || s.InstalledSecurity.FindAll(x=>x==id).Count!=1) throw new InvalidDataException("Invalid security.");
             foreach(var injury in s.Vitals.Injuries) if(injury==null || float.IsNaN(injury.recoveryPenalty) || injury.recoveryPenalty<0 || injury.recoveryPenalty>1) throw new InvalidDataException("Invalid injury.");
@@ -100,16 +102,44 @@ namespace VanishingDays
             ValidateDailyLife(s);
             ValidateLateStory(s,data);
             ValidateBrokenPath(s,data);
+            ValidateCommunity(s,data);
         }
         static void ValidateLateStory(SurvivalState s,SurvivalDefinitions data)
         {
             var story=data.lateStory;
-            if(s.LateFlags==null || s.EndingId==null || s.LateStep<0 || s.LateStep>=story.beats.Length || s.LateReadyDay<0 || s.Care<0 || s.LateTrust<0 || s.Isolation<0 || s.Lure<0) throw new InvalidDataException("Invalid late story progress.");
-            if((s.LateStep>0 || s.LateScenePending || s.HasEnded || s.LateFlags.Count>0) && !s.LateStoryStarted) throw new InvalidDataException("Late story started early.");
+            if(s.LateStoryRevision!=SurvivalState.CurrentStoryRevision || s.LateFlags==null || s.EndingId==null || s.LateStep<0 || s.LateStep>=story.beats.Length || s.LateReadyDay<0 || s.Care<0 || s.LateTrust<0 || s.Isolation<0 || s.Lure<0) throw new InvalidDataException("Invalid late story progress.");
+            if((s.LateStep>0 || s.LateScenePending || s.HasLateStoryResult || s.HasEnded || s.LateFlags.Count>0) && !s.LateStoryStarted) throw new InvalidDataException("Late story started early.");
             if(s.HasEnded && (story.Ending(s.EndingId)==null || s.LateScenePending)) throw new InvalidDataException("Invalid ending.");
+            if(s.HasLateStoryResult && (s.LateScenePending || s.BrokenPathScenePending || s.PendingEncounter!=null || s.PendingDongrimMeeting || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Overlapping story result.");
             foreach(var flag in s.LateFlags) if(string.IsNullOrWhiteSpace(flag) || s.LateFlags.FindAll(x=>x==flag).Count!=1) throw new InvalidDataException("Invalid late story flag.");
             var beat=s.CurrentBeat(data);
             if(s.LateScenePending && (beat==null || s.CurrentLocation!=beat.location || s.PendingEncounter!=null || s.PendingDongrimMeeting || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid late story scene.");
+        }
+        static void ValidateCommunity(SurvivalState s,SurvivalDefinitions data)
+        {
+            if(s.CommunityRequests==null || s.CommunityRequestDay<0 || s.CommunityRequestDay>s.day) throw new InvalidDataException("Invalid community request date.");
+            foreach(var request in s.CommunityRequests)
+                if(request==null || string.IsNullOrWhiteSpace(request.id) || string.IsNullOrWhiteSpace(request.text) || request.day<1 || request.day>s.CommunityRequestDay ||
+                    data.Location(request.location)==null || request.amount<0 || request.amount>0 && data.Item(request.item)==null ||
+                    request.rewardAmount<0 || request.rewardAmount>0 && data.Item(request.reward)==null ||
+                    s.CommunityRequests.FindAll(x=>x.id==request.id).Count!=1) throw new InvalidDataException("Invalid community request.");
+            var relay=s.Relay;
+            if(relay?.nodes==null || relay.plan==null || relay.startDay<0 || relay.startDay>relay.cycleDay || relay.cycleDay>s.day ||
+                relay.submittedDay<0 || relay.submittedDay>relay.cycleDay || relay.broadcasts<0 || relay.relayDays<0 || relay.supplyDays<0 ||
+                relay.relayDays>relay.broadcasts || relay.supplyDays>relay.broadcasts || relay.checks<0 || relay.badDawns<0 || relay.handovers<0 ||
+                relay.plan.Count>s.RelayDecisionLimit || relay.startDay==0 && (relay.nodes.Count!=0 || s.BroadcastPolicy!="") ||
+                relay.startDay>0 && (relay.nodes.Count!=SurvivalState.RelayLocations.Length || s.BrokenPath.Stage!=4 || s.BroadcastPolicy==""))
+                throw new InvalidDataException("Invalid relay progress.");
+            ValidateInventory(relay.shelterStorage,data);
+            var available=new System.Collections.Generic.HashSet<string>(s.RelayStaff());
+            foreach(var node in relay.nodes)
+                if(node==null || Array.IndexOf(SurvivalState.RelayLocations,node.id)<0 || node.supplies<0 || node.supplies>(node.shelf?4:3) ||
+                    node.signal<0 || node.signal>3 || node.occupancy<0 || node.occupancy>3 || node.staff==null ||
+                    node.staff!="" && (!available.Contains(node.staff) || relay.nodes.FindAll(x=>x.staff==node.staff).Count!=1) ||
+                    relay.nodes.FindAll(x=>x.id==node.id).Count!=1) throw new InvalidDataException("Invalid relay node.");
+            foreach(var action in relay.plan)
+                if(action==null || s.RelayNodeAt(action.node)==null || action.action!="announce" && action.action!="staff" && action.action!="check" && action.action!="send")
+                    throw new InvalidDataException("Invalid relay decision.");
         }
         static void ValidateBrokenPath(SurvivalState s,SurvivalDefinitions data)
         {
@@ -198,7 +228,7 @@ namespace VanishingDays
         {
             if(s.UnlockedLocations==null || s.VisitedLocations==null || s.DongrimMeetings<0 || s.LastDongrimMeetingDay<0 || s.LastDongrimMeetingDay>s.day || (s.Story.HasMetDongrim?s.DongrimMeetings<1:s.DongrimMeetings!=0 || s.LastDongrimMeetingDay!=0)) throw new InvalidDataException("Invalid world progress.");
             foreach(var id in s.UnlockedLocations) if(data.Location(id)==null || s.UnlockedLocations.FindAll(x=>x==id).Count!=1 || data.Location(id).requiresSupplyRumor) throw new InvalidDataException("Invalid unlocked location.");
-            foreach(var id in s.VisitedLocations) if(data.Location(id)==null || s.VisitedLocations.FindAll(x=>x==id).Count!=1 || !s.IsLocationUnlocked(id,data)) throw new InvalidDataException("Invalid visited location.");
+            foreach(var id in s.VisitedLocations) if(data.Location(id)==null || s.VisitedLocations.FindAll(x=>x==id).Count!=1 || !s.IsLocationUnlocked(id,data) && !s.IsLocationErased(id)) throw new InvalidDataException("Invalid visited location.");
             if(s.PendingDongrimMeeting && (!s.Story.HasMetDongrim || s.CurrentLocation!=s.DongrimMeetingLocation || s.day<s.NextDongrimDay || s.IsNight(data.TEMP_BALANCE) || s.PendingEncounter!=null || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid Dongrim encounter.");
             foreach(var id in s.InstalledSecurity)
             {

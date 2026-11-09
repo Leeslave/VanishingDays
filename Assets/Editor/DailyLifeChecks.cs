@@ -72,7 +72,7 @@ namespace VanishingDays.Editor
                 hour=s.hour; s.CheckNeighbor(data); check(s.hour==hour,"Neighbor check repeated time/result.");
                 s=Ready(data); check(s.CompanionAvailable && s.CanMeetCompanion(data),"Third reunion did not unlock first companion appointment.");
                 s.MeetCompanion(data); check(s.Companion==CompanionStep.Jiwoo && s.Story.HasMetJiwoo && !s.CanAct && !s.Story.JoinedLiberationFront,"Jiwoo opposition joined/moved the player or failed to lock event.");
-                check(s.CompanionText(data).Contains("두고 올 수"),"Jiwoo's concern was not companion responsibility.");
+                check(s.CompanionText(data).Contains("안에서 누가 도와 달라고 하면") && s.CompanionText(data).Contains("입구에서 볼 수 있는 데까지만"),"Jiwoo and the companions did not agree on the safe limit.");
                 saves.Save(s); check(saves.TryLoad(out restored,out _) && restored.Companion==CompanionStep.Jiwoo,"Opposition dialogue did not restore.");
                 s.ContinueCompanion(data); check(s.CanAct && s.Companion==CompanionStep.Preparation && s.CurrentLocation=="school","Preparation teleported home or blocked survival.");
                 check(!s.CanMeetCompanion(data),"Appointment allowed before the next day.");
