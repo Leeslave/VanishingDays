@@ -157,6 +157,9 @@ namespace VanishingDays
             AdvanceTime(hours,data,true); if(!IsGameOver) Vitals.Heal(data.TEMP_BALANCE.restHealing,data.TEMP_BALANCE);
             return Report(IsGameOver?"더 이상 몸을 일으킬 수 없다.":"집에서 "+hours+"시간 잤다. 졸림 "+Sleepiness+" / 100. "+(injuries>Vitals.Injuries.Count?"부상 "+(injuries-Vitals.Injuries.Count)+"곳이 나았다. ":"")+(Vitals.Injuries.Count>0?"다음 부상 회복까지 연속 수면 "+(data.TEMP_BALANCE.injuryRestHours-InjuryRestProgress)+"시간이 더 필요하다.":"하루 6시간 수면이 필요하며, 초과 수면 1시간마다 정신력 "+SleepMentalRecovery+"를 회복한다."));
         }
+        public const string HomeArrivalReport="집에 돌아왔다. 문을 걸어 잠그고 숨을 돌린다.";
+        // An encounter on the way home happens before the door is locked, so the arrival line waits for its outcome.
+        public string EncounterBackdrop => lastReport==HomeArrivalReport?"":lastReport;
         public string Travel(string destination,SurvivalDefinitions data,Func<double> random=null)
         {
             if(!CanAct || destination==CurrentLocation || !IsLocationUnlocked(destination,data)) return "지금은 이동할 수 없다.";
@@ -177,7 +180,7 @@ namespace VanishingDays
             if(returning && Companion==CompanionStep.Preparation) CompanionHomePrepared=true;
             RecordFact("travel",data.Location(destination).name+"에 도착했다.");
             if(destination=="supply_site") Story.SupplySiteVisited=true;
-            Report(returning?"집에 돌아왔다. 문을 걸어 잠그고 숨을 돌린다.":data.Location(destination).name+"에 도착했다. "+(IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
+            Report(returning?HomeArrivalReport:data.Location(destination).name+"에 도착했다. "+(IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
             if(!TryMeetDongrim(data) && !TryBeginLateStory(data)) CheckEncounter(false,data,random);
             if(returning)
             {

@@ -14,6 +14,15 @@ namespace VanishingDays
         public bool CompanionAvailable => TotalDongrimMeetings>=3;
         public int CompanionMeetingDay => Companion==CompanionStep.None?LastDongrimMeetingDay+1:CompanionReadyDay;
         public string CompanionHint => !CompanionAvailable?"동림과의 재회를 이어가면 동행 탐사를 의논할 수 있다.":Companion==CompanionStep.Completed?"첫 동행 탐사를 마쳤다. 각자의 거처에서 생활하며 다음 연락을 기다린다.":"동행 약속 · DAY "+CompanionMeetingDay+"부터 낮 · 고등학교\n"+(Companion==CompanionStep.Preparation && !CompanionHomePrepared?"먼저 자취방에 돌아가 수면과 식량을 정리하자.\n":"")+"집에서 준비한 식사를 챙길 수 있다. 식사가 없어도 짧은 경로로 탐사할 수 있다.";
+        // The promise only exists until the first expedition starts; afterwards the companion page just points at the next story stop.
+        public bool CompanionPromisePending => CompanionAvailable && (Companion==CompanionStep.None || Companion==CompanionStep.Preparation);
+        public bool CompanionPromiseDue => CompanionPromisePending && day>=CompanionMeetingDay && (Companion==CompanionStep.None || CompanionHomePrepared);
+        public string CompanionMeetLabel(SurvivalDefinitions data) =>
+            CanMeetCompanion(data)?"약속 장소에서 만난다":
+            day<CompanionMeetingDay?"DAY "+CompanionMeetingDay+"부터 만날 수 있다":
+            Companion==CompanionStep.Preparation && !CompanionHomePrepared?"먼저 자취방에서 준비한다":
+            CurrentLocation!="school"?"고등학교에서 만날 수 있다":
+            IsNight(data.TEMP_BALANCE)?"날이 밝으면 만날 수 있다":"지금은 만날 수 없다";
         public bool CanMeetCompanion(SurvivalDefinitions data) => CanAct && CompanionAvailable && (Companion==CompanionStep.None || Companion==CompanionStep.Preparation && CompanionHomePrepared) && day>=CompanionMeetingDay && CurrentLocation=="school" && !IsNight(data.TEMP_BALANCE);
         public string MeetCompanion(SurvivalDefinitions data)
         {
@@ -46,7 +55,7 @@ namespace VanishingDays
                 case CompanionStep.Jiwoo:
                     Companion=CompanionStep.Preparation; CompanionReadyDay=day+1;
                     RecordFact("expedition","동림과 내일 이후 낮에 학교에서 만나기로 했다. 준비를 위해 각자 집으로 돌아가기로 했다.");
-                    return Report("오늘은 해산한다. 각자 살던 곳에서 수면과 식량을 준비하기로 했다. 집으로 돌아가 준비하자.\n\n"+CompanionHint);
+                    return Report("오늘은 해산한다. 각자 살던 곳에서 수면과 식량을 준비하기로 했다. 집으로 돌아가 준비하자.");
                 case CompanionStep.Briefing:
                     CompanionMeal=CarriedMeal??"";
                     if(CompanionMeal!="") { Backpack.Remove(CompanionMeal,1); CompanionTrust++; RecordFact("expedition",data.Item(CompanionMeal).name+" 1개를 나누고 동림과 학교 뒤편을 살피기 시작했다."); }
@@ -76,6 +85,27 @@ namespace VanishingDays
             if(NeighborStage==0) { NeighborStage=1; RecordFact("neighbor","옆집 노인에게 반찬 그릇을 돌려드렸다. 벽을 두 번 두드려 안부를 나누기로 했다."); return Report(data.lifeStory.neighborFirst); }
             if(NeighborGreetings==3) { NeighborStage=2; RecordFact("neighbor","벽을 두 번 두드렸지만 오늘은 답이 없었다. 아직 이유는 알 수 없다."); return Report(data.lifeStory.neighborQuiet); }
             string text=data.lifeStory.greetings[(NeighborGreetings-2)%data.lifeStory.greetings.Length]; RecordFact("neighbor",text); return Report(text);
+        }
+        // After the move the neighbor's sign of life is a white towel on the pharmacy window, visible from home in daylight once a day.
+        public int TowelLastDay, TowelDays;
+        public bool TowelSeenToday => TowelLastDay==day && TowelDays>0;
+        public bool TowelMissing(SurvivalDefinitions data) => HasEnded || CurrentBeat(data)?.id is "final_call" or "final_visit" && day>=LateReadyDay;
+        public bool CanCheckTowel(SurvivalDefinitions data) => CanAct && NeighborMoved && CurrentLocation=="home" && !IsNight(data.TEMP_BALANCE) && !TowelSeenToday && !TowelMissing(data);
+        public string TowelStatus(SurvivalDefinitions data)
+        {
+            var script=data.lateStory;
+            if(TowelMissing(data)) return script.towelMissing;
+            if(TowelSeenToday) return script.towelDone;
+            if(CurrentLocation!="home") return script.towelAway;
+            return IsNight(data.TEMP_BALANCE)?script.towelDark:script.towelWaiting;
+        }
+        public string CheckTowel(SurvivalDefinitions data)
+        {
+            if(!CanCheckTowel(data)) return TowelStatus(data);
+            TowelLastDay=day; TowelDays++;
+            RecordFact("neighbor","약국 위층 창가에 흰 수건이 걸려 있었다.");
+            var seen=data.lateStory.towelSeen;
+            return Report(Script(seen[(TowelDays-1)%seen.Length]));
         }
         public string CheckNeighbor(SurvivalDefinitions data)
         {

@@ -91,6 +91,7 @@ namespace VanishingDays
             return true;
         }
         public void DismissMorning() { MorningDeferredDay=MorningLastDay; }
+        public bool IsMorningArchived(MorningIssue issue) => !issue.read && issue.day<=MorningDeferredDay;
         public void UpgradeDailyLife(SurvivalDefinitions data)
         {
             DailyFacts=new List<DailyFact>(); Diaries=new List<DiaryEntry>(); MorningIssues=new List<MorningIssue>();

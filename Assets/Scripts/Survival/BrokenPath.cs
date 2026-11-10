@@ -15,7 +15,7 @@ namespace VanishingDays
         public ItemStack[] large, small;
         public int BuildHours(int helpers) => Math.Max(minHours,hours-helperHours*helpers);
     }
-    [Serializable] public class BrokenPathSurvey { public string id, label, detail, body; }
+    [Serializable] public class BrokenPathSurvey { public string id, label, detail, body, bodyB; }
     [Serializable] public class BrokenPathDefinition
     {
         public int helperTrustOne, helperTrustTwo, steadyHours, shakingHours, peopleA, peopleB, maxNamelessLost;
@@ -169,7 +169,8 @@ namespace VanishingDays
             AdvanceTime(1,data); if(IsGameOver) return Report("조사를 마칠 힘이 없다.");
             BrokenPath.Surveyed.Add(id);
             RecordFact("story","보행교 현장 조사: "+survey.label+".");
-            return Report(BrokenPathText(survey.body,data));
+            // On route B the far side has already lost Yeongsuk's building, so some surveys need their own text.
+            return Report(BrokenPathText(BrokenPath.CoreChoice=="B" && !string.IsNullOrEmpty(survey.bodyB)?survey.bodyB:survey.body,data));
         }
         public string ChooseBrokenPathMethod(string id,SurvivalDefinitions data)
         {

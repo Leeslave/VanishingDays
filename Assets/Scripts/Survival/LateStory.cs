@@ -7,12 +7,14 @@ namespace VanishingDays
 {
     // TEMP_BALANCE: the late story is a fixed chain of scenes; choice weights (care, trust, isolation, lure) are provisional.
     [Serializable] public class LateStoryChoice { public string label, detail, result, fact, requires, give, ending, flag; public int hours, amount, care, trust, isolation, lure; }
-    [Serializable] public class LateStoryBeat { public string id, chapter, title, location, hint, body, condition, bodyIf, bodyElse, aftermath, unlocks, erases, route; public int delayDays, act; public bool daytime; public LateStoryChoice[] choices; }
+    [Serializable] public class LateStoryBeat { public string id, chapter, title, location, hint, body, condition, bodyIf, bodyElse, aftermath, unlocks, erases, route, window; public int delayDays, act, endHour; public bool daytime, endsAtHome; public LateStoryChoice[] choices; }
     [Serializable] public class LateEndingDefinition { public string id, title, body; }
     [Serializable] public class LateStoryDefinition
     {
         public int delegateTrust, lureEnding;
         public string lureTitle, lureGatherBody, lureChoice, gatherBroadcast, archive, neighborMoved;
+        public string towelWaiting, towelDark, towelAway, towelDone, towelMissing, towelHabit, towelNever;
+        public string[] towelSeen;
         public LateStoryBeat[] beats;
         public LateEndingDefinition[] endings;
         public LateEndingDefinition Ending(string id) => Array.Find(endings,x=>x.id==id);
@@ -25,12 +27,14 @@ namespace VanishingDays
         public void Validate(SurvivalDefinitions data)
         {
             if(beats==null || beats.Length<2 || endings==null || delegateTrust<1 || lureEnding<1 || new[]{lureTitle,lureGatherBody,lureChoice,gatherBroadcast,archive,neighborMoved}.Any(string.IsNullOrWhiteSpace)) throw new InvalidOperationException("Incomplete late story.");
+            if(towelSeen==null || towelSeen.Length<1 || towelSeen.Concat(new[]{towelWaiting,towelDark,towelAway,towelDone,towelMissing,towelHabit,towelNever}).Any(string.IsNullOrWhiteSpace) || !towelHabit.Contains("{TowelDays}")) throw new InvalidOperationException("Incomplete towel checks.");
             foreach(var ending in endings) if(ending==null || new[]{ending.id,ending.title,ending.body}.Any(string.IsNullOrWhiteSpace) || Array.FindAll(endings,x=>x.id==ending.id).Length!=1) throw new InvalidOperationException("Invalid ending.");
             foreach(var id in new[]{"tomorrow_here","tomorrow_delegated","closed_door","last_broadcast","collapse"}) if(Ending(id)==null) throw new InvalidOperationException("Missing ending: "+id);
             foreach(var beat in beats)
             {
                 if(beat==null || new[]{beat.id,beat.chapter,beat.title,beat.location,beat.hint,beat.body}.Any(string.IsNullOrWhiteSpace) || data.Location(beat.location)==null || beat.delayDays<0 || beat.choices==null || beat.choices.Length<1 || beat.choices.Length>3 || Array.FindAll(beats,x=>x.id==beat.id).Length!=1) throw new InvalidOperationException("Invalid late story beat: "+beat?.id);
                 if(beat.act<2 || beat.act>5 || !string.IsNullOrEmpty(beat.route) && beat.route!="A1" || !string.IsNullOrEmpty(beat.erases) && (data.Location(beat.erases)==null || beat.erases=="home" || beat.erases==beat.location)) throw new InvalidOperationException("Invalid act or erasure: "+beat.id);
+                if(!string.IsNullOrEmpty(beat.window) && beat.window!="morning" && beat.window!="evening" || beat.endHour<0 || beat.endHour>23) throw new InvalidOperationException("Invalid scene time: "+beat.id);
                 foreach(var choice in beat.choices)
                 {
                     if(choice==null || new[]{choice.label,choice.detail,choice.result,choice.fact}.Any(string.IsNullOrWhiteSpace) || choice.hours<0 || choice.care<0 || choice.trust<0 || choice.isolation<0 || choice.lure<0) throw new InvalidOperationException("Invalid late story choice in "+beat.id);
@@ -66,7 +70,7 @@ namespace VanishingDays
         public bool NeighborMoved => LateFlags.Contains("neighbor_moved");
         public LateStoryBeat CurrentBeat(SurvivalDefinitions data) => LateStoryStarted && !HasEnded && LateStep>=0 && LateStep<data.lateStory.beats.Length?data.lateStory.beats[LateStep]:null;
         public bool LureEndingDue(LateStoryBeat beat) => beat?.id=="final_call" && BroadcastPolicy=="gather";
-        public bool HasTrueArchive => EndingId=="tomorrow_delegated" || EndingId=="tomorrow_here" && LateFlags.Contains("archive_earned");
+        public bool HasTrueArchive => EndingId=="tomorrow_delegated" || EndingId=="tomorrow_here";
         void InitializeLateStory() => LateStoryRevision=CurrentStoryRevision;
         public void UpgradeLateStory(SurvivalDefinitions data)
         {
@@ -120,16 +124,24 @@ namespace VanishingDays
         void UpgradeEndingId(SurvivalDefinitions data)
         {
             if(EndingId=="continued_care") EndingId="collapse";
-            if(EndingId!="tomorrow_here") return;
-            if(LateFlags.Contains("neighbor_delegated")) EndingId="tomorrow_delegated";
-            else UnlockLateStory("archive_earned",data);
+            if(EndingId=="tomorrow_here" && LateFlags.Contains("neighbor_delegated")) EndingId="tomorrow_delegated";
         }
         public bool IsStoryLocationOpen(LocationDefinition place) => string.IsNullOrEmpty(place.requiresStoryFlag) || LateFlags.Contains(place.requiresStoryFlag);
         public string LateHint(SurvivalDefinitions data)
         {
             var beat=CurrentBeat(data); if(beat==null) return "";
-            return "["+beat.chapter+"] DAY "+Math.Max(day,LateReadyDay)+"부터"+(beat.daytime?" 낮에":"")+" "+data.Location(beat.location).name+" · "+beat.hint;
+            // While the bridge is being repaired the queued scene is not the current goal.
+            if(BrokenPathFieldWork) return "["+beat.chapter+"] "+data.brokenPath.hint;
+            string when=beat.window=="morning"?" 아침에":beat.window=="evening"?" 저녁에":beat.daytime?" 낮에":"";
+            return "["+beat.chapter+"] DAY "+Math.Max(day,LateReadyDay)+"부터"+when+" "+data.Location(beat.location).name+" · "+beat.hint;
         }
+        // Scenes that open on a time of day wait for it, so the clock agrees with the narration.
+        bool InBeatWindow(LateStoryBeat beat,SurvivalDefinitions data) => beat.window switch
+        {
+            "morning"=>hour>=data.TEMP_BALANCE.dayStarts && hour<12,
+            "evening"=>hour>=17,
+            _=>true
+        };
         public bool TryBeginLateStory(SurvivalDefinitions data)
         {
             var beat=CurrentBeat(data);
@@ -141,7 +153,7 @@ namespace VanishingDays
                 Note("연락망과 배분 창고가 함께 멈췄다.");
                 return true;
             }
-            if(beat==null || !CanAct || day<LateReadyDay || CurrentLocation!=beat.location || beat.daytime && IsNight(data.TEMP_BALANCE)) return false;
+            if(beat==null || !CanAct || day<LateReadyDay || CurrentLocation!=beat.location || beat.daytime && IsNight(data.TEMP_BALANCE) || !InBeatWindow(beat,data)) return false;
             if(beat.id=="network_trial" && !RelayReviewReady) return false;
             if(beat.id=="core_choice")
             {
@@ -163,6 +175,13 @@ namespace VanishingDays
             var beat=CurrentBeat(data); if(beat==null) return "";
             if(LureEndingDue(beat)) return Script(data.lateStory.lureGatherBody);
             string text=beat.body;
+            // The final morning measures the missing towel against how often the player actually looked.
+            if(beat.id=="final_call")
+            {
+                int cut=text.IndexOf("\n\n",StringComparison.Ordinal);
+                string habit=TowelDays>0?data.lateStory.towelHabit.Replace("{TowelDays}",TowelDays.ToString()):data.lateStory.towelNever;
+                text=cut<0?text+" "+habit:text.Insert(cut," "+habit);
+            }
             if(!string.IsNullOrEmpty(beat.condition))
             {
                 string extra=LateCondition(beat.condition)?beat.bodyIf:beat.bodyElse;
@@ -174,7 +193,7 @@ namespace VanishingDays
         public LateStoryChoice[] LateChoices(SurvivalDefinitions data)
         {
             var beat=CurrentBeat(data); if(beat==null) return new LateStoryChoice[0];
-            if(LureEndingDue(beat)) return new[]{new LateStoryChoice{label=data.lateStory.lureChoice,detail="방송은 멈추지 않는다",result="라디오 속 목소리가 다시 집결지를 가리켰다.",fact="라디오에서 내가 퍼뜨린 집결 안내가 반복됐다.",ending="last_broadcast"}};
+            if(LureEndingDue(beat)) return new[]{new LateStoryChoice{label=data.lateStory.lureChoice,detail="방송은 멈추지 않는다",result="라디오 속 목소리가 다시 집결지를 가리켰다.",fact="라디오에서 직접 읽었던 집결 안내가 반복됐다.",ending="last_broadcast"}};
             return beat.choices;
         }
         public bool CanChooseLate(int index,SurvivalDefinitions data)
@@ -195,7 +214,8 @@ namespace VanishingDays
             var beat=CurrentBeat(data); var choice=LateChoices(data)[index];
             LateScenePending=false;
             if(choice.requires=="meal") { string meal=Meals.First(x=>Backpack.Count(x)>0 || CurrentLocation=="home" && HomeStorage.Count(x)>0); (Backpack.Count(meal)>0?Backpack:HomeStorage).Remove(meal,1); }
-            if(choice.hours>0) { AdvanceTime(choice.hours,data); if(IsGameOver) return Report("끝까지 해낼 힘이 남지 않았다."); }
+            int sceneHours=Math.Max(choice.hours,beat.endHour-hour);
+            if(sceneHours>0) { AdvanceTime(sceneHours,data); if(IsGameOver) return Report("끝까지 해낼 힘이 남지 않았다."); }
             if(!string.IsNullOrEmpty(choice.give)) Backpack.Add(choice.give,choice.amount);
             Care+=choice.care; LateTrust+=choice.trust; Isolation+=choice.isolation; Lure+=choice.lure;
             if(!string.IsNullOrEmpty(beat.unlocks)) foreach(var id in beat.unlocks.Split(',')) UnlockLateStory(id.Trim(),data);
@@ -204,21 +224,32 @@ namespace VanishingDays
             if(beat.id=="three_posts" && IsLocationUnlocked("soup_house",data)) EraseLocation("soup_house",data);
             if(beat.id=="seokhyeon_meet") Story.HasMetSeokhyeon=true;
             if(beat.id=="endless") BeginRelayNetwork(data);
+            if(beat.endsAtHome) FinishSceneAtHome(data);
             RecordFact("story",Script(choice.fact));
             string text=Script(choice.result+(string.IsNullOrEmpty(beat.aftermath)?"":"\n\n"+beat.aftermath));
             if(!string.IsNullOrEmpty(choice.ending))
             {
                 EndingId=choice.ending switch
                 {
-                    "last_broadcast"=>"last_broadcast",
+                    "last_broadcast" or "closed_door"=>choice.ending,
                     _ when BroadcastPolicy=="silent"=>"collapse",
-                    "tomorrow_delegated" when !CanReachTrueEnding=>"collapse",
+                    "tomorrow_delegated" or "tomorrow_here" when !CanReachTrueEnding=>"collapse",
                     _=>choice.ending
                 };
                 return Report(text);
             }
             AdvanceLateStory(data);
             return Report(text);
+        }
+        void FinishSceneAtHome(SurvivalDefinitions data)
+        {
+            if(CurrentLocation=="home") return;
+            string previous=CurrentLocation;
+            CurrentLocation="home";
+            FinishDeferredErasure(previous,data);
+            MarkVisited("home");
+            AwayFromHome=false;
+            StoreCarriedOnReturn(data);
         }
         void AdvanceLateStory(SurvivalDefinitions data)
         {

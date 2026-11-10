@@ -17,9 +17,30 @@ namespace VanishingDays
         Action returnFromStory;
         List<(string title,string body)>[] storyChapters;
 
+        // The reader spoils every branch, so players earn it by reaching any ending once; the flag outlives "new record" restarts.
+        const string StoryReaderUnlockKey="vd_story_reader_unlocked";
+        bool StoryReaderUnlocked
+        {
+            get
+            {
+#if UNITY_EDITOR || VD_UI_VERIFICATION
+                return true;
+#else
+                return state?.HasEnded==true || PlayerPrefs.GetInt(StoryReaderUnlockKey,0)==1;
+#endif
+            }
+        }
+
+        void UnlockStoryReader()
+        {
+            if(PlayerPrefs.GetInt(StoryReaderUnlockKey,0)==1) return;
+            PlayerPrefs.SetInt(StoryReaderUnlockKey,1);
+            PlayerPrefs.Save();
+        }
+
         void OpenStoryReader()
         {
-            if(!readingStory) StartCoroutine(LoadStoryReader());
+            if(!readingStory && StoryReaderUnlocked) StartCoroutine(LoadStoryReader());
         }
 
         IEnumerator LoadStoryReader()

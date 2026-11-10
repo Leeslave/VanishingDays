@@ -99,7 +99,7 @@ namespace VanishingDays
             var reward=CommunityReward(request);
             Backpack.Add(reward.item,reward.amount);
             var survey=Array.Find(Surveys,x=>x.id==request.id);
-            string outcome=request.id=="soup_check"?"적혀 있던 번지에 집이 없다. 영숙에게 빈 터를 확인한 시각을 남겼다.":
+            string outcome=request.id=="soup_check"?"순찰조가 가리킨 골목 끝에 집이 없다. 셔터에서 몇 걸음 들어간 곳부터 흙바닥이다. 영숙에게 빈 터를 확인한 시각을 남겼다.":
                 survey.result??(data.Location(request.location).name+" 교대에 부탁받은 물품을 건넸다.");
             outcome+="\n보상 · "+data.Item(reward.item).name+" "+data.Quantity(reward.item,reward.amount)+" · 신뢰 +1";
             if(request.id=="soup_check")

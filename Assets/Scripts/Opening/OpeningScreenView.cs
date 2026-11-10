@@ -135,8 +135,10 @@ namespace VanishingDays
                     AtlasIcon(atlas,icons[i],28,62+i*76,60,loadout);
                     Text(rows[i],112,62+i*76,664,60,26,i==2 && SelectedDifficulty==GameDifficulty.HARD?new Color32(231,160,138,255):Paper,loadout).alignment=TextAnchor.MiddleLeft;
                 }
-                Button(screen.button,48,530,flow.Next,1404,112);
-                Button("스토리 열람",596,256,()=>OnStoryReaderRequested?.Invoke(),1404,112,false);
+                // The host subscribes only once the story reader is unlocked; until then the start button spans the row.
+                bool storyOpen=OnStoryReaderRequested!=null;
+                Button(screen.button,48,storyOpen?530:804,flow.Next,1404,112);
+                if(storyOpen) Button("스토리 열람",596,256,()=>OnStoryReaderRequested?.Invoke(),1404,112,false);
                 int rateIndex=(int)SelectedDifficulty;
                 Text("시간당 허기 +"+new[]{1,2,3}[rateIndex]+" · 목마름 +"+new[]{0,5,8}[rateIndex]+" · 졸림 +"+new[]{2,3,4}[rateIndex],0,1538,900,34,21,Muted).alignment=TextAnchor.UpperCenter;
                 return;

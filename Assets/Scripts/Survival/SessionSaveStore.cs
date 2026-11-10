@@ -165,6 +165,7 @@ namespace VanishingDays
             foreach(var fact in s.DailyFacts) if(fact==null || fact.day<s.DiaryStartDay || fact.day>s.day || fact.hour<0 || fact.hour>23 || fact.count<1 || string.IsNullOrWhiteSpace(fact.kind) || string.IsNullOrWhiteSpace(fact.text)) throw new InvalidDataException("Invalid daily fact.");
             if(s.NeighborStage<0 || s.NeighborStage>3 || s.NeighborGreetings<0 || s.NeighborLastDay<0 || s.NeighborLastDay>s.day || !Enum.IsDefined(typeof(CompanionStep),s.Companion) || s.CompanionTrust<0 || s.CompanionTrust>3 || s.CompanionReadyDay<0 || s.CompanionMeal==null) throw new InvalidDataException("Invalid companion/neighbor progress.");
             if(s.Companion!=CompanionStep.None && (!s.Story.HasMetJiwoo || s.TotalDongrimMeetings<3) || s.HasActiveCompanion && (s.CurrentLocation!="school" || s.PendingEncounter!=null || s.HasActiveCrowdIncident || s.PendingDongrimMeeting)) throw new InvalidDataException("Invalid active companion story.");
+            if(s.TowelDays<0 || s.TowelDays>s.day || s.TowelLastDay<0 || s.TowelLastDay>s.day || (s.TowelDays==0)!=(s.TowelLastDay==0)) throw new InvalidDataException("Invalid towel checks.");
             if(s.CompanionMeal!="" && s.CompanionMeal!="rice_meal" && s.CompanionMeal!="spam_meal" && s.CompanionMeal!="tuna_meal" && s.CompanionMeal!="ramen_meal") throw new InvalidDataException("Invalid companion meal.");
         }
         static void ValidateErasureNews(SurvivalState s,SurvivalDefinitions data)

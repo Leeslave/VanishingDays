@@ -26,7 +26,7 @@ namespace VanishingDays.Editor
             require(data.screens[9].body.EndsWith("나 드디어 100만 유튜버가 될 수 있을지도 모른다."),"Last archive sentence changed.");
             require(data.screens[10].body=="— 이석현의 기록 중 마지막.\n\n이 이후로 이석현도 흔적도 없이 사라졌다.","Disappearance notice changed.");
             require(data.screens[11].kind=="Nickname" && data.screens[12].date=="2031년 2월 26일","Nickname/date transition changed.");
-            require(data.screens[12].body=="대한민국을 떠들썩하게 했던 사건이 지나고 2개월이 지났다.\n\n그 이후, 국회의사당도, 청와대도, 방송국들도, 전부 사라졌다.\n\n나는 오늘도 살아남아야 한다.","Player record changed.");
+            require(data.screens[12].body=="잠실의 탑이 사라진 지 두 달이 지났다. 그사이 국회의사당도, 청와대도, 방송국들도 차례로 사라졌다.\n\n가스 검침 일을 할 때 들고 다니던 송파구 지도를 책상에 폈다. 계량기 번호를 적어 두던 여백에 이제는 끊긴 골목을 표시한다. 어제 막힌 길에 빗금을 긋고, 집에서 편의점까지 아직 걸을 수 있는 길을 짚었다.\n\n지도를 접어 외투 안주머니에 넣었다. 오늘 나가면 달라진 길부터 확인할 생각이다.","Player record changed.");
             require((new DateTime(2030,12,26)).AddMonths(2)==new DateTime(2031,2,26),"Date interval is not two months.");
             string allText=string.Join("\n",Array.ConvertAll(data.screens,s=>s.title+"\n"+s.body));
             foreach(string forbidden in new[]{"LRU","시뮬레이션","AI","실험 목적","롯데월드타워","인구 밀도"}) require(!allText.Contains(forbidden),"Unapproved lore or landmark name: "+forbidden);

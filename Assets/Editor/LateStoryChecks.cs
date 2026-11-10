@@ -12,13 +12,22 @@ namespace VanishingDays.Editor
         {
             if(!ok) throw new Exception("Late story: "+message);
         }
+        // JsonUtility turns a null encounter into an empty object, which would block every action on the copy.
+        static SurvivalState Copy(SurvivalState s)
+        {
+            var copy=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+            if(copy.PendingEncounter!=null && string.IsNullOrEmpty(copy.PendingEncounter.kind)) copy.PendingEncounter=null;
+            return copy;
+        }
         static SurvivalState AfterExpedition(SurvivalDefinitions data)
         {
             var s=ErasureNewsChecks.AfterGarak(data);
             s.UnlockedLocations.AddRange(new[]{"empty_house","school"});
             Go(s,"home",data); s.day=2; Go(s,"empty_house",data);
             Go(s,"home",data); s.day=3; Go(s,"school",data);
-            s.day=4; s.hour=8; s.MeetCompanion(data); s.ContinueCompanion(data); Go(s,"home",data);
+            s.day=4; s.hour=8; s.MeetCompanion(data);
+            Check(!s.ContinueCompanion(data).Contains(s.CompanionHint),"the companion schedule would be printed twice");
+            Go(s,"home",data);
             s.day=s.CompanionReadyDay; Go(s,"school",data);
             s.MeetCompanion(data); s.ContinueCompanion(data); s.ContinueCompanion(data,true); s.ContinueCompanion(data);
             Go(s,"home",data);
@@ -42,6 +51,16 @@ namespace VanishingDays.Editor
             var beat=s.CurrentBeat(data);
             s.day=Math.Max(s.day,s.LateReadyDay);
             Go(s,beat.location,data);
+            if(!string.IsNullOrEmpty(beat.window))
+            {
+                s.LateScenePending=false;
+                s.hour=beat.window=="morning"?14:10;
+                Check(!s.TryBeginLateStory(data),beat.id+" opened outside its "+beat.window+" window");
+                s.hour=beat.window=="morning"?5:4;
+                Check(!s.TryBeginLateStory(data),beat.id+" opened before dawn");
+                s.hour=beat.window=="morning"?9:19;
+                Check(s.LateHint(data).Contains(beat.window=="morning"?"아침에":"저녁에"),beat.id+" hint does not name its time of day");
+            }
             if(!s.LateScenePending && !s.BrokenPathScenePending) s.TryBeginLateStory(data);
         }
         static void ChooseBeat(SurvivalState s,SurvivalDefinitions data,int index=0)
@@ -63,8 +82,11 @@ namespace VanishingDays.Editor
         {
             ChooseBroken(s,"core_"+route[0],data);
             ChooseBroken(s,"field",data);
+            Check(s.LateHint(data).Contains(data.brokenPath.hint) && s.WorldHint(data).Contains(data.brokenPath.hint),"the map still points at the scene before the bridge");
             Go(s,"seongnae_bridge",data);
             s.SurveyBrokenPath("pier",data);
+            string gapReport=s.SurveyBrokenPath("gap",data);
+            Check(gapReport.Contains("[무전] 김영숙")==(route[0]=='A'),"Yeongsuk's radio line does not match route "+route);
             s.ChooseBrokenPathMethod("ladder",data);
             int trips=0;
             while(s.BrokenPath.Site.Count("ladder")<2 && trips++<2)
@@ -112,6 +134,12 @@ namespace VanishingDays.Editor
 
             var s=AfterExpedition(data);
             Check(s.CurrentAct(data)==2 && s.CurrentBeat(data)?.id=="yeongsuk_soup","second act did not queue after the expedition");
+            var mugged=Copy(s);
+            Go(mugged,"store",data);
+            mugged.hour=8;
+            int muggedRolls=0;
+            mugged.Travel("home",data,()=>muggedRolls++==0?0:1);
+            Check(mugged.PendingEncounter?.kind=="hungry" && mugged.lastReport==SurvivalState.HomeArrivalReport && mugged.EncounterBackdrop=="","an encounter on the way home shows the player already safe indoors");
             Open(s,data);
             saves.Save(s);
             Check(saves.TryLoad(out var restored,out _) && restored.LateScenePending && restored.CurrentBeat(data).id=="yeongsuk_soup","pending scene not restored");
@@ -157,6 +185,25 @@ namespace VanishingDays.Editor
                 Check(s.RelayStaff().Contains("donglim")==(route!="A1"),"wrong survivor eligible for relay");
                 ChooseBeat(s,data);
                 Check(s.RelayActive && s.CurrentAct(data)==4 && s.IsLocationUnlocked("rescue_post",data),"relay did not start from the policy choice");
+                Check(s.CurrentLocation=="home" && s.hour>=data.TEMP_BALANCE.nightStarts,"the broadcast scene says the player walked home after dark");
+                if(route=="B")
+                {
+                    var towel=Copy(s);
+                    Check(towel.NeighborMoved && !towel.CanCheckTowel(data) && towel.TowelStatus(data)==data.lateStory.towelDark,"the towel could be seen after dark");
+                    Dawn(towel,data);
+                    towel.PendingEncounter=null;
+                    int seen=towel.TowelDays, facts=towel.DailyFacts.Count;
+                    Check(towel.CanCheckTowel(data),"the morning towel check was unavailable at home");
+                    towel.CheckTowel(data);
+                    Check(towel.TowelDays==seen+1 && towel.TowelSeenToday && towel.DailyFacts.Count==facts+1 && !towel.CanCheckTowel(data),"the towel check did not count exactly once a day");
+                    towel.CheckTowel(data);
+                    Check(towel.TowelDays==seen+1,"the towel was counted twice in one day");
+                    var towelSaves=new SessionSaveStore(Path.Combine(Path.GetDirectoryName(path),"towel-save.json"),data);
+                    towelSaves.Save(towel);
+                    Check(towelSaves.TryLoad(out var towelSave,out _) && towelSave.TowelDays==towel.TowelDays && towelSave.TowelLastDay==towel.day,"towel checks were lost on load");
+                    var away=Copy(towel); away.day++; Go(away,"pharmacy",data);
+                    Check(!away.CanCheckTowel(data) && away.TowelStatus(data)==data.lateStory.towelAway,"the towel could be seen away from home");
+                }
                 if(route=="A1")
                 {
                     var grief=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
@@ -191,11 +238,16 @@ namespace VanishingDays.Editor
                 ChooseBeat(s,data);
                 Open(s,data);
                 Check(s.CanChooseLate(1,data),"trusted delegation unavailable");
-                var direct=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+                var direct=Copy(s);
                 direct.ChooseLateStory(0,data);
                 ChooseBeat(direct,data);
-                Check(direct.EndingId=="tomorrow_here" && !direct.HasTrueArchive,"direct visit unlocked the delegation archive");
-                var withoutHandover=JsonUtility.FromJson<SurvivalState>(JsonUtility.ToJson(s));
+                Check(direct.EndingId=="tomorrow_here" && direct.HasTrueArchive,"direct visit with the handover did not reach the true ending");
+                var directWithoutHandover=Copy(s);
+                directWithoutHandover.LateFlags.Remove("jiwoo_shared");
+                directWithoutHandover.ChooseLateStory(0,data);
+                ChooseBeat(directWithoutHandover,data);
+                Check(directWithoutHandover.EndingId=="collapse" && !directWithoutHandover.HasTrueArchive,"direct visit without the handover unlocked the true ending");
+                var withoutHandover=Copy(s);
                 withoutHandover.LateFlags.Remove("jiwoo_shared");
                 withoutHandover.ChooseLateStory(1,data);
                 Check(withoutHandover.EndingId=="collapse" && !withoutHandover.HasTrueArchive,"delegation without handover unlocked the true ending");
@@ -214,6 +266,12 @@ namespace VanishingDays.Editor
                 ChooseBeat(s,data,policy=="gather"?1:policy=="silent"?2:0);
                 if(policy=="silent")
                 {
+                    var quiet=Copy(s);
+                    for(int i=0;i<3;i++) { Dawn(quiet,data); quiet.Relay.badDawns=0; quiet.Relay.collapseDue=false; }
+                    ChooseBeat(quiet,data);
+                    ChooseBeat(quiet,data);
+                    ChooseBeat(quiet,data,2);
+                    Check(quiet.EndingId=="closed_door","refusing to answer after the transmitter was shut off still ended at the last post");
                     int morningIssues=s.MorningIssues.Count;
                     for(int i=0;i<10 && !s.Relay.collapseDue;i++) Dawn(s,data);
                     Check(s.MorningIssues.Count==morningIssues,"public broadcasts continued after the transmitter was shut off");
@@ -226,6 +284,13 @@ namespace VanishingDays.Editor
                     if(policy=="gather") Check(s.MorningIssues.Last().body==data.lateStory.gatherBroadcast,"the copied voice did not replace the regular morning broadcast");
                     ChooseBeat(s,data);
                     ChooseBeat(s,data);
+                    if(policy=="closed")
+                    {
+                        Open(s,data);
+                        Check(s.TowelDays==0 && s.LateBeatText(data).Contains(data.lateStory.towelNever) && s.TowelMissing(data),"the final morning ignored that the window was never checked");
+                        var watched=Copy(s); watched.TowelDays=4; watched.TowelLastDay=watched.day-1;
+                        Check(watched.LateBeatText(data).Contains("4번의 아침"),"the final morning ignored the towel habit");
+                    }
                     ChooseBeat(s,data,policy=="gather"?0:2);
                     Check(s.EndingId==(policy=="gather"?"last_broadcast":"closed_door"),"incorrect ending for "+policy);
                 }
@@ -247,6 +312,10 @@ namespace VanishingDays.Editor
             File.WriteAllText(path,JsonUtility.ToJson(oldTestEntry));
             Check(saves.TryLoad(out restored,out _) && restored.CurrentBeat(data).id=="core_choice" && restored.BrokenPathScenePending &&
                 restored.NeighborMoved && restored.IsLocationUnlocked("pharmacy",data),"older Act 3 test save could not reach the final visit");
+            string lateRaw=Resources.Load<TextAsset>("Survival/LateStory").text;
+            int firstExperiment=lateRaw.IndexOf("EXP-01",StringComparison.Ordinal);
+            Check(firstExperiment>lateRaw.IndexOf("\"archive\"",StringComparison.Ordinal) && !Resources.Load<TextAsset>("Survival/BrokenPath").text.Contains("EXP-01"),
+                "EXP-01 was named before the true-ending archive");
             Debug.Log("VD_LATE_STORY_CHECKS_OK: normal act gates, permanent erasures, requests, saves, policy and endings.");
         }
     }

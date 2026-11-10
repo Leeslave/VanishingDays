@@ -314,7 +314,7 @@
     {
       "id": "store",
       "name": "편의점",
-      "description": "점주는 달아났고 진열대는 이미 털렸다. 남은 물자가 있더라도 많지는 않을 것이다.",
+      "description": "점주는 달아났고 앞쪽 진열대는 이미 털렸다. 계산대 아래와 뒤쪽 창고는 아직 아무도 뒤지지 않은 것 같다. 한 번 비우면 다시 채워지지 않는다.",
       "travelHours": 1,
       "searchHours": 1,
       "loot": [
@@ -745,9 +745,9 @@
     },
     {
       "id": "soup_house",
-      "name": "계단 옆 거처",
-      "mapLabel": "배식 손님 거처",
-      "description": "계단 옆에 앉던 사람이 주소를 적어 둔 작은 집. 번지판이 있던 자리를 확인해 보자.",
+      "name": "철물점 골목 안쪽",
+      "mapLabel": "12번의 골목",
+      "description": "12번이 셔터 앞에서 헤어져 걸어 들어갔다는 골목. 순찰조가 가리킨 쪽 끝까지 확인해 보자.",
       "travelHours": 1,
       "searchHours": 0,
       "requiresStoryFlag": "soup_house",
