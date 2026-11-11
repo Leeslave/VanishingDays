@@ -80,7 +80,10 @@ namespace VanishingDays
         void TutorialReturnLink()
         {
             if(page=="tutorial-controls") return;
-            if((!state.TutorialActive && !(state.TutorialStep==6 && page=="sleep")) || page=="tutorial") return;
+            // "생존 안내 완료" only greets the player on the sleep page right after the last practice; once they
+            // move on (or reload) the finished tutorial stays out of the header for good.
+            if(!state.TutorialActive && page!="sleep") tutorialSeenStep=6;
+            if((!state.TutorialActive && !(state.TutorialStep==6 && page=="sleep" && tutorialSeenStep<6)) || page=="tutorial") return;
             float x=48,w=804;
             var alert=root.Find("Survival alert") as RectTransform;
             if(alert!=null) { alert.sizeDelta=new Vector2(460,56); alert.Find("Fill").GetComponent<RectTransform>().sizeDelta=new Vector2(456,52); foreach(var label in alert.GetComponentsInChildren<Text>()) label.rectTransform.sizeDelta=new Vector2(396,48); foreach(Transform child in alert) if(child.name=="Chevron") child.gameObject.SetActive(false); x=520; w=332; }

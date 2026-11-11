@@ -16,6 +16,23 @@ namespace VanishingDays
         // Story dialogue names the protagonist with the player's nickname. "(이)" after the
         // placeholder follows the final consonant: 재현 → 재현이라고, 민수 → 민수라고.
         public string Script(string text) => WithScriptName(text,string.IsNullOrEmpty(PlayerNickname)?ProtagonistScriptName:PlayerNickname);
+        // Final consonant index of the last spoken sound (0 = none, 8 = ㄹ); digits and units are read aloud.
+        static int FinalSound(string word)
+        {
+            string trimmed=(word??"").TrimEnd(' ','.',')','”','"','’','\'');
+            if(trimmed.Length==0) return 0;
+            char last=trimmed[trimmed.Length-1];
+            if(last>='가' && last<='힣') return (last-'가')%28;
+            if(last>='0' && last<='9') return new[]{21,8,0,16,0,0,1,8,8,0}[last-'0'];
+            return last=='g' || last=='m'?16:0;
+        }
+        // Attaches the particle that fits the word: "을/를", "이/가", "은/는", "과/와" or "으로/로".
+        public static string Particle(string word,string pair)
+        {
+            int sound=FinalSound(word); var forms=pair.Split('/');
+            if(pair=="으로/로") return word+(sound==0 || sound==8?"로":"으로");
+            return word+(sound>0?forms[0]:forms[1]);
+        }
         internal static string WithScriptName(string text,string name)
         {
             char last=name.Length>0?name[name.Length-1]:' ';

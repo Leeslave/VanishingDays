@@ -34,7 +34,7 @@ namespace VanishingDays
         {
             var blocks=Blocks(text);
             var mode=forced??ScriptBlocks.PresentationFor(blocks);
-            if(text!=sceneKey) { sceneKey=text; sceneStep=0; sceneLog=false; }
+            if(text!=sceneKey) { sceneKey=text; sceneStep=0; sceneLog=false; GuardChoices(); }
             if(mode==ScenePresentation.Radio) { RadioText(blocks,top,choicesTop-top-16,false,null); return true; }
             bool stepping=blocks.Count>2 && !scenesRead.Contains(text) && sceneStep<blocks.Count-1;
             if(!stepping)
@@ -50,14 +50,14 @@ namespace VanishingDays
                 SceneLog(blocks,top);
                 return false;
             }
-            sceneAdvance=()=>{ sceneStep++; if(sceneStep>=blocks.Count-1) scenesRead.Add(text); Render(); };
+            sceneAdvance=()=>{ sceneStep++; if(sceneStep>=blocks.Count-1) { scenesRead.Add(text); GuardChoices(); } Render(); };
             if(mode==ScenePresentation.Scene) SceneStepper(blocks,top); else JournalStepper(blocks,top);
             return false;
         }
         void SkipScene()
         {
             if(sceneKey!=null) scenesRead.Add(sceneKey);
-            sceneLog=false; Render();
+            sceneLog=false; GuardChoices(); Render();
         }
 
         // ---- A · journal page --------------------------------------------------------------------------
@@ -230,6 +230,16 @@ namespace VanishingDays
                     id=ScriptBlocks.PortraitId(earlier.Speaker); if(id==null) continue;
                     speaker=earlier.Speaker; dim=true; break;
                 }
+            // Before anyone has spoken, the first person who will speak is already in the scene; show them dimmed, untagged.
+            bool upcoming=false;
+            if(speaker==null && !overAir)
+                for(int i=step+1;i<blocks.Count;i++)
+                {
+                    var later=blocks[i];
+                    if(later.Kind!=ScriptBlockKind.Speech || later.IsPlayer) continue;
+                    id=ScriptBlocks.PortraitId(later.Speaker); if(id==null) continue;
+                    speaker=later.Speaker; dim=upcoming=true; break;
+                }
             var frame=Box("Portrait",x,y,w,h,Panel);
             if(portraitHatch==null)
             {
@@ -255,8 +265,16 @@ namespace VanishingDays
                     figure.PortraitId=id; figure.raycastTarget=false; figure.color=new Color(1,1,1,dim?.4f:1);
                 }
             }
+            else if(art!=null)
+            {
+                // No face in this scene (or a voice over the air): the city keeps the panel from reading as a blank placeholder.
+                var city=Rect("Scene backdrop",frame,0,0,w,h).gameObject.AddComponent<RawImage>(); city.texture=art; city.raycastTarget=false;
+                float desired=w/h, actual=art.width/(float)art.height;
+                city.uvRect=actual>desired?new UnityEngine.Rect((1-desired/actual)/2,0,desired/actual,1):new UnityEngine.Rect(0,(1-actual/desired)/2,1,actual/desired);
+                city.color=new Color(1,1,1,overAir?.35f:.6f);
+            }
             FadeToInk(x,y+h-56,w,56);
-            string tag=overAir?"무전 수신 중":speaker==null?"":speaker+(dim?" · 듣는 중":"");
+            string tag=overAir?"무전 수신 중":speaker==null || upcoming?"":speaker+(dim?" · 듣는 중":"");
             if(tag.Length>0)
             {
                 var tagBox=Box("Portrait tag",x+16,y+16,tag.Length*21+36,40,new Color(Ink.r,Ink.g,Ink.b,.8f));

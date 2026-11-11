@@ -10,7 +10,7 @@ namespace VanishingDays
     [Serializable] public class BrokenPathScene { public string id, chapter, title, body; public BrokenPathChoice[] choices; }
     [Serializable] public class BrokenPathMethod
     {
-        public string id, name, summary, crossing, injured, retreat, builtLine, requires;
+        public string id, name, summary, crossing, injured, retreat, builtLine, requires, crossingName, carryLine, doorLine;
         public int hours, minHours, helperHours, score;
         public ItemStack[] large, small;
         public int BuildHours(int helpers) => Math.Max(minHours,hours-helperHours*helpers);
@@ -41,7 +41,7 @@ namespace VanishingDays
             if(farReportsA==null || farReportsA.Length!=3 || farReportsB==null || farReportsB.Length!=3 || steadyHours<1 || shakingHours<=steadyHours || peopleA<5 || peopleB<5 || maxNamelessLost<0) throw new InvalidOperationException("Invalid broken path balance.");
             foreach(var method in methods)
             {
-                if(string.IsNullOrWhiteSpace(method.id) || string.IsNullOrWhiteSpace(method.name) || Survey(method.requires)==null || method.minHours<1 || method.hours<method.minHours || method.large==null || method.small==null) throw new InvalidOperationException("Invalid construction method: "+method.id);
+                if(string.IsNullOrWhiteSpace(method.id) || string.IsNullOrWhiteSpace(method.name) || string.IsNullOrWhiteSpace(method.crossingName) || string.IsNullOrWhiteSpace(method.carryLine) || string.IsNullOrWhiteSpace(method.doorLine) || Survey(method.requires)==null || method.minHours<1 || method.hours<method.minHours || method.large==null || method.small==null) throw new InvalidOperationException("Invalid construction method: "+method.id);
                 foreach(var cost in method.large) if(!SurvivalState.IsLargeMaterial(cost.id) || cost.amount<1) throw new InvalidOperationException("Large materials must be ladders or planks.");
                 foreach(var cost in method.small) if(data.Item(cost.id)==null || SurvivalState.IsLargeMaterial(cost.id) || cost.amount<1) throw new InvalidOperationException("Invalid small material.");
             }
@@ -102,7 +102,7 @@ namespace VanishingDays
             var d=data.brokenPath; var p=BrokenPath; var method=d.Method(p.Method);
             return Script((text??"").Replace("{Remaining}",p.Remaining.ToString()).Replace("{FirstGroup}",p.FirstGroup.ToString()).Replace("{Survivors}",p.Survivors.ToString())
                 .Replace("{Rescued}",p.RescuedCount.ToString()).Replace("{Lost}",p.LostCount.ToString()).Replace("{Extra}",p.Extra.ToString()).Replace("{FarPeople}",FarPeople(data).ToString())
-                .Replace("{MethodBuilt}",method?.builtLine??"").Replace("{BLine}",p.Outcome=="B_Light"?d.lightLine:d.heavyLine));
+                .Replace("{MethodBuilt}",method?.builtLine??"").Replace("{Crossing}",method?.crossingName??"다리").Replace("{CarryLine}",method?.carryLine??"").Replace("{DoorLine}",method?.doorLine??"").Replace("{BLine}",p.Outcome=="B_Light"?d.lightLine:d.heavyLine));
         }
         public BrokenPathScene CurrentBrokenPathScene(SurvivalDefinitions data) => BrokenPathScenePending?data.brokenPath.Scene(BrokenPath.Scene):null;
 
@@ -157,7 +157,7 @@ namespace VanishingDays
             // finish
             p.Scene=""; p.Stage=4;
             if(CurrentBeat(data)?.id=="core_choice") AdvanceLateStory(data);
-            string summary=p.Outcome=="A1"?"동림을 잃었다. 보호소에서 "+p.RescuedCount+"명을 데려왔다.":p.Outcome=="A2"?"동림과 함께 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 떠났다.":"동림을 "+(p.Outcome=="B_Light"?"데려왔다.":"중상인 채로 데려왔다.")+" 영숙 씨는 돌아오지 않았다.";
+            string summary=p.Outcome=="A1"?"동림을 잃었다. 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 중계실을 떠났다.":p.Outcome=="A2"?"동림과 함께 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 떠났다.":"동림을 "+(p.Outcome=="B_Light"?"데려왔다.":"중상인 채로 데려왔다.")+" 영숙 씨는 돌아오지 않았다.";
             RecordFact("story","「끊어진 길」을 마쳤다. "+summary);
             return Report("[3막 · 끊어진 길] "+summary);
         }
@@ -168,7 +168,14 @@ namespace VanishingDays
             if(!CanAct || !BrokenPathFieldWork || CurrentLocation!="seongnae_bridge" || survey==null || BrokenPath.Surveyed.Contains(id) || BrokenPath.Built) return "지금은 조사할 수 없다.";
             AdvanceTime(1,data); if(IsGameOver) return Report("조사를 마칠 힘이 없다.");
             BrokenPath.Surveyed.Add(id);
-            RecordFact("story","보행교 현장 조사: "+survey.label+".");
+            RecordFact("story",id switch
+            {
+                "gap"=>"보행교의 끊어진 길이를 쟀다.",
+                "pier"=>"보행교에 남은 교각이 버틸지 살폈다.",
+                "far"=>"무전으로 건너편의 인원과 부상자를 확인했다.",
+                "detour"=>"둑 아래로 하천 바닥을 우회하는 길을 확인했다.",
+                _=>"보행교 현장을 조사했다."
+            });
             // On route B the far side has already lost Yeongsuk's building, so some surveys need their own text.
             return Report(BrokenPathText(BrokenPath.CoreChoice=="B" && !string.IsNullOrEmpty(survey.bodyB)?survey.bodyB:survey.body,data));
         }
@@ -177,7 +184,7 @@ namespace VanishingDays
             var method=data.brokenPath.Method(id);
             if(!BrokenPathFieldWork || BrokenPath.Built || method==null || IsGameOver) return "지금은 계획을 바꿀 수 없다.";
             BrokenPath.Method=id;
-            RecordFact("story","보행교를 잇는 방법으로 "+method.name+"을 정했다.");
+            RecordFact("story","보행교를 잇는 방법으로 "+Particle(method.name,"을/를")+" 정했다.");
             return Report(method.name+"으로 정했다. "+method.summary);
         }
         public string TakeYardMaterial(string id,SurvivalDefinitions data)
@@ -195,8 +202,8 @@ namespace VanishingDays
             if(!CanAct || !BrokenPathFieldWork || CurrentLocation!="seongnae_bridge" || CarriedLarge==0) return "내려놓을 큰 자재가 없다.";
             var moved=new List<string>();
             foreach(var id in new[]{"ladder","steel_plank"}) { int count=Backpack.Count(id); if(count>0 && Backpack.Transfer(BrokenPath.Site,id,count)) moved.Add(data.Item(id).name+" "+count+"개"); }
-            RecordFact("story","보행교 끝에 "+string.Join(", ",moved)+"를 내려놓았다.");
-            return Report("보행교 끝에 "+string.Join(", ",moved)+"를 내려놓았다.");
+            RecordFact("story","보행교 끝에 "+Particle(string.Join(", ",moved),"을/를")+" 내려놓았다.");
+            return Report("보행교 끝에 "+Particle(string.Join(", ",moved),"을/를")+" 내려놓았다.");
         }
         // Have/need for one material of the chosen plan: large pieces count what is stacked at the bridge, small ones what is carried.
         public int BrokenPathHave(string id) => IsLargeMaterial(id)?BrokenPath.Site.Count(id):Backpack.Count(id);
@@ -228,8 +235,8 @@ namespace VanishingDays
                 p.RescuedCount=p.Survivors; p.LostCount=d.peopleB-p.Survivors; Vitals.AdjustMental(-10);
             }
             p.Scene="evac_"+p.CoreChoice;
-            RecordFact("story","성내천 보행교에 "+method.name+"을 놓았다.");
-            return Report(method.name+"을 놓았다. 건너편에서 사람들이 움직이기 시작했다.");
+            RecordFact("story","성내천 보행교에 "+Particle(method.name,"을/를")+" 놓았다.");
+            return Report(Particle(method.name,"을/를")+" 놓았다. 건너편에서 사람들이 움직이기 시작했다.");
         }
         // Waiting is never resolved for the player: after the far side turns critical, each new day costs one unnamed person.
         void TickBrokenPathDay(SurvivalDefinitions data)

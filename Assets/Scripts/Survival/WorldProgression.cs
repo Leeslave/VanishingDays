@@ -10,7 +10,9 @@ namespace VanishingDays
         public int DongrimMeetings, LastDongrimMeetingDay;
         public bool PendingDongrimMeeting;
         public int TotalDongrimMeetings => Story.HasMetDongrim?Math.Max(1,DongrimMeetings):0;
-        public string DongrimMeetingLocation => TotalDongrimMeetings==1 || (TotalDongrimMeetings>=3 && TotalDongrimMeetings%2==1)?"empty_house":"school";
+        // During the companion promise Dongrim waits at the school; the patrol rotation resumes after the first expedition.
+        public string DongrimMeetingLocation => CompanionPhase?"school":PatrolLocation;
+        public string PatrolLocation => TotalDongrimMeetings==1 || (TotalDongrimMeetings>=3 && TotalDongrimMeetings%2==1)?"empty_house":"school";
         public int NextDongrimDay => LastDongrimMeetingDay+(TotalDongrimMeetings<3?1:2);
         public void MarkVisited(string id) { if(!VisitedLocations.Contains(id)) VisitedLocations.Add(id); }
         public void DiscoverLocations(SurvivalDefinitions data)
@@ -65,6 +67,17 @@ namespace VanishingDays
             if(!HasSearchWork(id,data)) return summary+" · 물자 소진";
             return summary+" · 잔량 "+(100-LootPercent(id,data))+"%";
         }
+        // Places the story has changed describe what is there now, not what the first visit found.
+        public string Describe(LocationDefinition place,SurvivalDefinitions data)
+        {
+            if(place.id=="sp_station" && (RelayActive || LateFlags.Contains("records_checked")))
+                return "SP 기지국 송출실. 지우와 교대원들이 번갈아 지키며, 송출대 옆에는 교신 장부와 교대표가 펼쳐져 있다.";
+            if(place.id=="pharmacy" && NeighborMoved)
+                return place.description+" 위층에는 옆집에 살던 노인이 이사 와 산다. 창가 난간의 흰 수건이 안부 신호다.";
+            if(place.id=="relay_room" && BrokenPath!=null && BrokenPath.Stage>=4 && !BrokenPath.SeokhyeonCoop)
+                return "구청 뒤편 상가 꼭대기층의 중계실. 석현이 장비를 챙겨 떠난 뒤로 젖은 장부만 창가에 남아 있다.";
+            return place.description;
+        }
         public string WorldHint(SurvivalDefinitions data)
         {
             if(CurrentBeat(data)!=null) return LateHint(data);
@@ -77,11 +90,13 @@ namespace VanishingDays
         public string DongrimHint(SurvivalDefinitions data)
         {
             if(!Story.HasMetDongrim || BrokenPathActive || BrokenPath.Outcome=="B_Heavy" || !BrokenPath.DonglimAlive) return "";
+            // One appointment at a time: the companion promise replaces the patrol until the first expedition ends.
+            if(CompanionPhase) return CompanionHint;
             return "동림의 약속 · DAY "+NextDongrimDay+"부터 낮에 "+data.Location(DongrimMeetingLocation).name+"에서 재회\n"+(TotalDongrimMeetings==1?"동림이 지도에 짚어 준 곳은 빈집 뒤편이다.":TotalDongrimMeetings==2?"고등학교 게시판 앞에서 주변 생존자 소식을 듣기로 했다.":"이틀 간격으로 순찰 중인 동림과 소식·식량을 교환할 수 있다.");
         }
         bool TryMeetDongrim(SurvivalDefinitions data)
         {
-            if(!CanAct || BrokenPathActive || BrokenPath.Outcome=="B_Heavy" || BrokenPath?.DonglimAlive==false || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=DongrimMeetingLocation) return false;
+            if(!CanAct || CompanionPhase || BrokenPathActive || BrokenPath.Outcome=="B_Heavy" || BrokenPath?.DonglimAlive==false || !Story.HasMetDongrim || day<NextDongrimDay || IsNight(data.TEMP_BALANCE) || CurrentLocation!=PatrolLocation) return false;
             PendingDongrimMeeting=true;
             Note("[최동림 재회] "+data.Location(CurrentLocation).name+"에서 익숙한 목소리가 들렸다.");
             return true;

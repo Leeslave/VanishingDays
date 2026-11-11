@@ -17,15 +17,18 @@ namespace VanishingDays
             if(!CanDrink) return "지금 마실 수 있는 생수가 없거나 아직 목마르지 않다.";
             var source=CurrentLocation=="home" && HomeStorage.Count("water")>0?HomeStorage:Backpack;
             source.Remove("water",1); Thirst=0; HydrationHours=0;
-            RecordFact("story","생수 1병을 마셔 목마름을 해소했다.");
+            RecordFact("chore","생수 1병을 마셔 목마름을 해소했다.");
             return Report("생수 1병(500ml)을 마셨다. 목마름 0 / 100 · 식수 주기를 새로 시작한다.");
         }
         public ItemStack[] CookingIngredients(RecipeDefinition recipe) => UnlimitedWater?Array.FindAll(recipe.ingredients,x=>x.id!="water"):recipe.ingredients;
         public bool CanCook(RecipeDefinition recipe,SurvivalDefinitions data) => CanAct && CurrentLocation=="home" && recipe!=null && HomeStorage.Count("burner")>0 && HomeStorage.Has(CookingIngredients(recipe));
-        void TickWater(SurvivalDefinitions data)
+        // TEMP_BALANCE: asleep, the body loses water at half the waking rate, so a night costs one bottle, not two.
+        void TickWater(SurvivalDefinitions data,bool resting=false)
         {
             if(IsGameOver || UnlimitedWater) return;
-            Thirst=Math.Min(100,Thirst+data.Rates(Difficulty).thirstPerHour);
+            int rate=data.Rates(Difficulty).thirstPerHour;
+            Thirst=Math.Min(100,Thirst+(resting?(rate+1)/2:rate));
+            if(resting && hour%2==1) return;
             HydrationHours++;
             if(HydrationHours<WaterInterval(data)) return;
             HydrationHours=0;

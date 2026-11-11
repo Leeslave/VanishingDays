@@ -68,7 +68,7 @@ namespace VanishingDays.Editor
                 s=fresh(); s.Backpack.Add("weapon",1); s.Equip("weapon",data); s.PendingEncounter=new Encounter{kind="hungry",context="길거리"}; s.AttackHungrySurvivor(data);
                 check(s.Vitals.MentalCap==100 && s.PendingEncounter==null,"Nonfatal attack was treated as a killing.");
                 s.Vitals.MoralHarm(int.MaxValue); check(s.Vitals.MentalCap==0 && s.Vitals.CurrentMental==0 && !s.IsGameOver,"Moral cap underflow or unrequested death.");
-                s=fresh(); s.Travel("store",data,()=>.27);
+                s=fresh(); s.Travel("store",data,()=>.2);
                 check(s.PendingEncounter?.kind=="trader" && !s.CanAct,"Rare daylight street trader did not block normal actions.");
                 check(!s.CanStreetTrade(0),"Trader accepted home supplies.");
                 s.StreetTrade(0,data); check(s.PendingEncounter!=null && s.Backpack.Count("bandage")==0,"Insufficient trade mutated state.");
@@ -82,8 +82,8 @@ namespace VanishingDays.Editor
                 }
                 s=fresh(); s.Travel("store",data,()=>0); check(s.PendingEncounter?.kind=="hungry","Ordinary encounter replaced by trader.");
                 s=fresh(); s.hour=20; s.Travel("store",data,()=>.09); check(s.PendingEncounter==null && s.Vitals.Injuries.Count==1,"Night spawned trader instead of danger.");
-                s=fresh(); s.Travel("store",data,()=>1); s.Search(data,()=>.22); check(s.PendingEncounter?.kind=="hungry","Indoor search spawned street trader.");
-                s=fresh(); s.Travel("store",data,()=>.27); var before=s.RandomState; int hour=s.hour; s.LeaveStreetTrader(data);
+                s=fresh(); s.Travel("store",data,()=>1); s.Search(data,()=>.12); check(s.PendingEncounter?.kind=="hungry","Indoor search spawned street trader.");
+                s=fresh(); s.Travel("store",data,()=>.2); var before=s.RandomState; int hour=s.hour; s.LeaveStreetTrader(data);
                 check(s.CanAct && s.hour==hour && s.RandomState==before && s.Backpack.stacks.Count==0,"Declining trader spent time/supplies.");
                 foreach(var location in data.locations)
                 {

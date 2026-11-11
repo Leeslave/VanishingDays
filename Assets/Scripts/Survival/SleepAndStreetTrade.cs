@@ -30,8 +30,8 @@ namespace VanishingDays
         {
             if(!CanStreetTrade(index)) return "교환할 소지품이 부족하다.";
             var offer=StreetOffers[index]; Backpack.Remove(offer.give,offer.cost); Backpack.Add(offer.receive,offer.amount); string before=PendingEncounter.report; PendingEncounter=null;
-            RecordFact("story","길에서 행상인에게 "+data.Item(offer.give).name+" "+data.Quantity(offer.give,offer.cost)+"을 주고 "+data.Item(offer.receive).name+" "+data.Quantity(offer.receive,offer.amount)+"을 받았다.");
-            return EncounterOutcome(before,Report("행상인과 "+data.Item(offer.give).name+" "+data.Quantity(offer.give,offer.cost)+"을 주고 "+data.Item(offer.receive).name+" "+data.Quantity(offer.receive,offer.amount)+"을 받았다."),data);
+            RecordFact("story","길에서 행상인에게 "+Particle(data.Item(offer.give).name+" "+data.Quantity(offer.give,offer.cost),"을/를")+" 주고 "+Particle(data.Item(offer.receive).name+" "+data.Quantity(offer.receive,offer.amount),"을/를")+" 받았다.");
+            return EncounterOutcome(before,Report("행상인과 "+Particle(data.Item(offer.give).name+" "+data.Quantity(offer.give,offer.cost),"을/를")+" 주고 "+Particle(data.Item(offer.receive).name+" "+data.Quantity(offer.receive,offer.amount),"을/를")+" 받았다."),data);
         }
         public string LeaveStreetTrader(SurvivalDefinitions data)
         {

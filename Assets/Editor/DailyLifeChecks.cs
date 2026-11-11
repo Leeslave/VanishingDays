@@ -38,6 +38,11 @@ namespace VanishingDays.Editor
                 check(s.DailyFacts.Count==facts,"Storage clicking became a story event.");
                 s=fresh(); s.HomeStorage.Add("water",100); s.AdvanceTime(50,data,true);
                 check(s.Diaries.Count==2 && s.Diaries[0].body.Contains("16시간") && s.Diaries[1].body.Contains("24시간"),"Long sleep lost dates or assigned hours to the wrong diary.");
+                // A nap and the night's sleep on one calendar day are separate lines, not one merged total.
+                var split=fresh(); split.HomeStorage.Add("water",100); split.hour=0; split.AdvanceTime(5,data,true); split.AdvanceTime(15,data); split.AdvanceTime(4,data,true);
+                var dayOne=split.Diaries.Find(x=>x.day==1)?.body??"";
+                check(dayOne.Contains("00시부터 집에서 5시간") && dayOne.Contains("20시부터 집에서 4시간") && !dayOne.Contains("9시간"),"Separate sleeps were merged into one diary total.");
+                check(SurvivalState.Particle("참치","을/를")=="참치를" && SurvivalState.Particle("소독약 1개","을/를")=="소독약 1개를" && SurvivalState.Particle("주민회관 지하","으로/로")=="주민회관 지하로" && SurvivalState.Particle("쌀 0.1kg","을/를")=="쌀 0.1kg을","Korean particles do not follow the final sound.");
                 s.ReadDiary(1); check(s.NextDiary.day==2,"Diary read queue skipped a date."); saves.Save(s);
                 check(saves.TryLoad(out var restored,out _) && restored.NextDiary.day==2 && restored.Diaries[0].body==s.Diaries[0].body,"Unread diary state did not restore.");
                 s=fresh(); s.hour=7; s.AdvanceTime(1,data); check(s.MorningIssues.Count==0,"Morning radio before acquisition.");
@@ -70,7 +75,14 @@ namespace VanishingDays.Editor
                 check(s.NeighborStage==2 && s.Vitals.CurrentHP==500 && s.DailyFacts.Last().text.Contains("아직"),"Unanswered greeting prematurely killed neighbor or invented an answer.");
                 s.CheckNeighbor(data); check(s.NeighborStage==3 && s.CurrentLocation=="home" && s.DailyFacts.Last().text.Contains("직접 확인"),"Neighbor physical check did not resolve normally.");
                 hour=s.hour; s.CheckNeighbor(data); check(s.hour==hour,"Neighbor check repeated time/result.");
+                s=fresh(); s.PlayerNickname="검증자"; string[] order={"동림과 재회했다(1)","학교에서 물자를 챙겼다(2)","굶주린 사람과 마주쳤다(3)","무전을 들었다(4)","옆집에 안부를 전했다(5)"};
+                s.RecordFact("story",order[0]); s.RecordFact("loot",order[1]); s.RecordFact("story",order[2]); s.RecordFact("story",order[3]); s.RecordFact("neighbor",order[4]); s.FinalizeDiary(1,data);
+                var positions=order.Select(x=>s.Diaries[0].body.IndexOf(x)).ToArray();
+                check(positions.All(x=>x>=0) && positions.Zip(positions.Skip(1),(a,b)=>a<b).All(x=>x),"Diary dropped the day's events or told them out of order.");
                 s=Ready(data); check(s.CompanionAvailable && s.CanMeetCompanion(data),"Third reunion did not unlock first companion appointment.");
+                check(s.CompanionPhase && s.DongrimMeetingLocation=="school" && s.DongrimHint(data).StartsWith("동행 약속") && !s.CompanionHint.Contains("식사"),"First promise kept the patrol schedule or asked for a meal it never uses.");
+                var patrol=Ready(data); patrol.day=patrol.LastDongrimMeetingDay+2; patrol.Travel("empty_house",data,()=>1);
+                check(!patrol.PendingDongrimMeeting,"Patrol meeting overlapped the open companion promise.");
                 s.MeetCompanion(data); check(s.Companion==CompanionStep.Jiwoo && s.Story.HasMetJiwoo && !s.CanAct && !s.Story.JoinedLiberationFront,"Jiwoo opposition joined/moved the player or failed to lock event.");
                 check(s.CompanionText(data).Contains("안에서 누가 도와 달라고 하면") && s.CompanionText(data).Contains("입구에서 볼 수 있는 데까지만"),"Jiwoo and the companions did not agree on the safe limit.");
                 saves.Save(s); check(saves.TryLoad(out restored,out _) && restored.Companion==CompanionStep.Jiwoo,"Opposition dialogue did not restore.");
@@ -82,13 +94,16 @@ namespace VanishingDays.Editor
                 check(s.CompanionPromiseDue && s.CompanionMeetLabel(data)=="고등학교에서 만날 수 있다","Due appointment away from school did not name the place.");
                 s.Travel("school",data,()=>1);
                 check(s.CanMeetCompanion(data) && s.CompanionMeetLabel(data)=="약속 장소에서 만난다","Missed appointment permanently blocked story.");
-                s.MeetCompanion(data); s.ContinueCompanion(data);
+                check(s.CompanionHint.Contains("식사"),"Expedition promise did not mention the meal it uses.");
+                s.Vitals.Hunger=50; s.MeetCompanion(data); s.ContinueCompanion(data);
                 check(s.Companion==CompanionStep.Decision && s.CompanionTrust==1 && s.Backpack.Count("rice_meal")==0,"Prepared meal not spent exactly once.");
+                check(s.Vitals.Hunger==50-SurvivalState.SharedMealRelief(data.Item("rice_meal")) && s.lastReport.Contains("허기 -"),"Shared meal did not feed the player.");
                 saves.Save(s); check(saves.TryLoad(out restored,out _) && restored.Companion==CompanionStep.Decision && restored.CompanionTrust==1,"In-expedition choice did not restore.");
                 s.ContinueCompanion(data,true); check(s.Companion==CompanionStep.Debrief && s.CompanionTrust==3 && s.CompanionWithdrew,"Withdrawal result/trust wrong.");
                 s.ContinueCompanion(data); hour=s.hour; s.ContinueCompanion(data);
                 check(s.Companion==CompanionStep.Completed && s.hour==hour && s.CompanionTrust==3 && !s.Story.JoinedLiberationFront && s.CurrentLocation=="school","Expedition result duplicated or automatically joined/moved home.");
                 check(!s.CompanionPromisePending && !s.CompanionPromiseDue && !s.HasActiveCompanion,"Finished expedition still advertised a meeting.");
+                check(!s.CompanionPhase && s.NextDongrimDay==s.day+2 && s.DongrimHint(data).StartsWith("동림의 약속"),"Patrol schedule did not resume after the first expedition.");
                 s.Travel("home",data,()=>1); check(s.CurrentLocation=="home" && s.HomeStorage.Count("burner")==1 && s.CanAct,"Expedition did not return to original life loop.");
                 s=Ready(data); s.MeetCompanion(data); s.ContinueCompanion(data); s.Travel("home",data,()=>1); s.day=s.CompanionReadyDay; s.hour=8; s.Travel("school",data,()=>1); s.MeetCompanion(data); s.ContinueCompanion(data);
                 check(s.Companion==CompanionStep.Decision && s.CompanionMeal=="" && s.CompanionTrust==0,"Missing prepared meal blocked/pretended preparation.");

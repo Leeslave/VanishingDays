@@ -60,11 +60,15 @@ namespace VanishingDays.Editor
             check(s.PendingDongrimMeeting && s.DongrimDialogue(data).Contains("주민"),"Third meeting did not trigger at school.");
             s.ResolveDongrimMeeting(false,data);
             check(s.TotalDongrimMeetings==3 && s.IsLocationUnlocked("shelter",data) && !s.Story.JoinedLiberationFront && !s.Story.HasMetJiwoo,"Third meeting missed route or forced unrelated story.");
-            s.Travel("home",data,()=>1); s.day=5; s.hour=8; s.Vitals.Hunger=0; s.Travel("empty_house",data,()=>1);
-            check(!s.PendingDongrimMeeting,"Patrol cooldown shorter than two days.");
             s.Travel("home",data,()=>1); s.day=6; s.hour=8; s.Vitals.Hunger=0; s.Travel("empty_house",data,()=>1);
+            check(!s.PendingDongrimMeeting,"Patrol overlapped the open companion promise.");
+            // The first expedition (day 6, offscreen here) counts as a meeting; patrols resume two days later.
+            s.Companion=CompanionStep.Completed; s.Story.HasMetJiwoo=true; s.LastDongrimMeetingDay=6; s.LateReadyDay=99;
+            s.Travel("home",data,()=>1); s.day=7; s.hour=8; s.Vitals.Hunger=0; s.Travel("empty_house",data,()=>1);
+            check(!s.PendingDongrimMeeting,"Patrol cooldown shorter than two days.");
+            s.Travel("home",data,()=>1); s.day=8; s.hour=8; s.Vitals.Hunger=0; s.Travel("empty_house",data,()=>1);
             check(s.PendingDongrimMeeting && s.DongrimDialogue(data).Contains("붕대"),"Recurring patrol missing.");
-            s.ResolveDongrimMeeting(false,data); check(s.TotalDongrimMeetings==4 && s.DongrimMeetingLocation=="school" && s.NextDongrimDay==8,"Patrol rotation/cooldown wrong.");
+            s.ResolveDongrimMeeting(false,data); check(s.TotalDongrimMeetings==4 && s.DongrimMeetingLocation=="school" && s.NextDongrimDay==10,"Patrol rotation/cooldown wrong.");
             s.Travel("shelter",data,()=>1); s.Search(data,()=>1); check(s.Backpack.Count("rice")==100,"Rice pool did not use 100g search units.");
             s.Travel("home",data,()=>1); s.HomeStorage.Add("wood",20); s.HomeStorage.Add("tools",10); hour=s.hour;
             s.InstallSecurity("door3",data); check(s.DoorLevel==0 && s.hour==hour,"Door upgrade bypassed prerequisites.");

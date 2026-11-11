@@ -41,7 +41,7 @@ namespace VanishingDays
             if(hungry) warning+=(warning.Length>0?"  /  ":"")+(Starving?"굶주림 · 체력이 줄고 있다":"허기 "+state.Vitals.Hunger+" · 식사 필요");
             // Water first, then sleep, then food: the most urgent need decides where the strip leads.
             string target=water || ready?"water":sleep?(home?"sleep":"map"):home?"kitchen":"inventory";
-            var strip=Pressable("Survival alert",48,376,804,56,()=>{page=target;message="";Render();},state.CanAct && !state.HasLifeNotice,EmberEdge,Alert).transform;
+            var strip=Pressable("Survival alert",48,376,804,56,()=>{page=target;message="";Render();},state.CanAct && !LifeNoticeBlocks,EmberEdge,Alert).transform;
             Box("Alert mark",20,18,8,20,Amber,strip);
             Label(warning,44,4,736,48,22,AmberText,strip).alignment=TextAnchor.MiddleLeft;
             Chevron(770,16,Amber,strip);
@@ -103,7 +103,7 @@ namespace VanishingDays
                         int hours=durations[i];
                         var option=Pressable(hours+"시간 자동 집수 시작",20+i*250,62,240,62,()=>Apply(state.StartWaterCollection(hours),"water"),state.CanStartCollector,state.CollectorGuideStep==3?Amber:Edge,state.CollectorGuideStep==3?EmberDim:Panel,settings);
                         Label(hours+"시간",0,0,240,62,26,state.CanStartCollector?Amber:Faint,option.transform).alignment=TextAnchor.MiddleCenter;
-                        Label("혼탁한 물 "+hours*2+"병",20+i*250,136,240,32,21,Muted,settings).alignment=TextAnchor.MiddleCenter;
+                        Label("혼탁한 물 "+SurvivalState.CollectorYield(hours)+"병",20+i*250,136,240,32,21,Muted,settings).alignment=TextAnchor.MiddleCenter;
                     }
                     y+=204;
                     WaterAction(content,ref y,"water_collector","집수통 물 회수",state.CollectorReady?"혼탁한 물 "+state.CollectorCapacity+"병을 집 창고로 옮깁니다. · 0시간":"집수통이 가득 차면 회수할 수 있습니다.",()=>Apply(state.CollectWater(),"water"),state.CanCollectWater);
@@ -114,8 +114,8 @@ namespace VanishingDays
             else if(waterTab==2)
             {
                 WaterAction(content,ref y,"burner","물을 끓인다","부르스타 사용 · 1시간\n혼탁한 물 2병 → 생수 2병",()=>Apply(state.Craft("boil_water",definitions),"water"),state.CanCraft("boil_water",definitions));
-                WaterAction(content,ref y,"water_filter","생수 정수",(state.WaterFilterLevel==0?"정수기 설치 필요":state.WaterFilterLevel+"단계 정수기 · "+definitions.crafting.Find("purify_water").hours+"시간")+"\n혼탁한 물 4병 → 생수 "+state.PurifiedWaterAmount+"병",()=>Apply(state.Craft("purify_water",definitions),"water"),state.CanCraft("purify_water",definitions));
-                WaterNote(content,ref y,"정수기 수율\n간이 50% · 그럴듯한 75% · 괜찮은 100%\n혼탁한 물은 그대로 마실 수 없습니다.");
+                WaterAction(content,ref y,"water_filter","생수 정수",(state.WaterFilterLevel==0?"정수기 설치 필요":state.WaterFilterLevel+"단계 정수기 · "+definitions.crafting.Find("purify_water").hours+"시간")+"\n혼탁한 물 6병 → 생수 "+state.PurifiedWaterAmount+"병",()=>Apply(state.Craft("purify_water",definitions),"water"),state.CanCraft("purify_water",definitions));
+                WaterNote(content,ref y,"정수기 · 1시간에 혼탁한 물 6병 처리\n간이 → 4병 · 그럴듯한 → 5병 · 괜찮은 → 6병\n끓이기는 1시간에 2병, 손실 없음. 혼탁한 물은 그대로 마실 수 없습니다.");
             }
             else
             {
@@ -177,8 +177,13 @@ namespace VanishingDays
             if(state.CollectorGuideStep==0 || state.CurrentLocation!="home") return;
             string hint=state.CollectorGuideStep==1?"아래에서 ‘식수 관리’를 눌러 보세요.":
                 state.CollectorGuideStep==2?"식수 관리에서 ‘물 확보’를 눌러 보세요.":"‘물 확보’에서 2·5·10시간 중 하나를 눌러 집수를 시작하세요.";
-            var strip=Box("Collector guide",48,432,804,28,EmberDim);
-            Label("집수 안내 "+state.CollectorGuideStep+"/3 · "+hint,12,0,780,28,19,AmberText,strip);
+            // Sits in the header strip (376-432) like the tutorial link, never over the page title or the request badge.
+            float x=48,w=804;
+            var alert=root.Find("Survival alert") as RectTransform;
+            if(alert!=null) { alert.sizeDelta=new Vector2(460,56); alert.Find("Fill").GetComponent<RectTransform>().sizeDelta=new Vector2(456,52); foreach(var label in alert.GetComponentsInChildren<Text>()) label.rectTransform.sizeDelta=new Vector2(396,48); foreach(Transform child in alert) if(child.name=="Chevron") child.gameObject.SetActive(false); x=520; w=332; }
+            var strip=Box("Collector guide",x,376,w,56,EmberDim);
+            Box("Collector guide edge",0,0,4,56,Amber,strip);
+            var text=Label("집수 안내 "+state.CollectorGuideStep+"/3 · "+hint,16,0,w-24,56,alert!=null?18:22,AmberText,strip); text.alignment=TextAnchor.MiddleLeft;
         }
         void CollectorNotification()
         {

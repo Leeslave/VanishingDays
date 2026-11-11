@@ -33,7 +33,7 @@ namespace VanishingDays.Editor
                     var s=fresh(difficulty);int stock=s.HomeStorage.Count("water"),interval=s.WaterInterval(data);
                     s.AdvanceTime(interval-1,data);check(s.HomeStorage.Count("water")==stock && s.HydrationHours==interval-1,"Early automatic drinking.");
                     s.AdvanceTime(1,data);check(s.HomeStorage.Count("water")==stock-1 && s.Thirst==0 && s.HydrationHours==0,"Difficulty drink schedule failed.");
-                    s.AdvanceTime(interval*2,data,true);check(s.HomeStorage.Count("water")==stock-3,"Sleep skipped water consumption.");
+                    s.AdvanceTime(interval*2,data,true);check(s.HomeStorage.Count("water")==stock-2,"Sleep should drink half as often as waking hours.");
                     s=fresh(difficulty);s.CurrentLocation="store";s.AwayFromHome=true;s.AdvanceTime(interval,data);
                     check(s.HomeStorage.Count("water")==stock && s.Vitals.CurrentHP==490,"Away drinking accessed home water.");
                     s.Backpack.Add("water",1);s.AdvanceTime(interval,data);check(s.Backpack.Count("water")==0 && s.Vitals.CurrentHP==490 && s.Thirst==0,"Carried drinking failed.");

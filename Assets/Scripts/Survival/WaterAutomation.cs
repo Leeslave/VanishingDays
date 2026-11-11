@@ -7,9 +7,11 @@ namespace VanishingDays
         public int CollectorCycleHours, CollectorElapsedHours, CollectorGuideStep;
         public bool CollectorNoticePending;
         public bool CollectorReady => CollectorCycleHours>0 && CollectorElapsedHours==CollectorCycleHours;
-        public int CollectorCapacity => CollectorCycleHours*2;
+        // Longer cycles are more convenient but slower per hour; a full 10-hour tank fills one purifier batch.
+        public static int CollectorYield(int hours) => hours>=10?6:hours>=5?4:hours>0?2:0;
+        public int CollectorCapacity => CollectorYield(CollectorCycleHours);
         public int WaterFilterLevel => HasFacility("water_filter3")?3:HasFacility("water_filter2")?2:HasFacility("water_filter")?1:0;
-        public int PurifiedWaterAmount => WaterFilterLevel==3?4:WaterFilterLevel==2?3:2;
+        public int PurifiedWaterAmount => WaterFilterLevel==3?6:WaterFilterLevel==2?5:4;
         public bool CanStartCollector => CanAct && CurrentLocation=="home" && HasFacility("water_collector") && CollectorCycleHours==0;
         public bool CanCollectWater => CanAct && CurrentLocation=="home" && CollectorReady;
         public string CollectorStatus => !HasFacility("water_collector")?"집수통 미설치 · 제작에서 설치 가능":CollectorCycleHours==0?"집수통 대기 · 2 / 5 / 10시간 자동 집수 선택":CollectorReady?"집수통 가득 참 · 혼탁한 물 "+CollectorCapacity+"병 · 회수 0시간":"자동 집수 중 · "+(CollectorCycleHours-CollectorElapsedHours)+"시간 후 혼탁한 물 "+CollectorCapacity+"병";
@@ -33,7 +35,7 @@ namespace VanishingDays
             int amount=CollectorCapacity;
             HomeStorage.Add("raw_water",amount);
             CollectorCycleHours=0; CollectorElapsedHours=0; CollectorNoticePending=false;
-            RecordFact("story","자동 집수한 혼탁한 물 "+amount+"병을 회수했다.");
+            RecordFact("chore","자동 집수한 혼탁한 물 "+amount+"병을 회수했다.");
             return Report("혼탁한 물 "+amount+"병을 집에 회수했다. 시간 소모 없음. 다시 집수를 설정할 수 있다.");
         }
         public void UpgradeSurvivalBalance(SurvivalDefinitions data)

@@ -21,20 +21,20 @@ namespace VanishingDays.Editor
                 int elapsed=s.CollectorElapsedHours;s.StartWaterCollection(2);check(s.CollectorCycleHours==duration && s.CollectorElapsedHours==elapsed,"Starting again reset active collection.");
                 int raw=s.HomeStorage.Count("raw_water");s.CollectWater();check(s.HomeStorage.Count("raw_water")==raw,"Unfinished collector paid out.");
                 s.CurrentLocation="store";s.AwayFromHome=true;s.Backpack.Add("water",10);s.AdvanceTime(1,data);
-                check(s.CollectorReady && s.CollectorNoticePending && s.CollectorCapacity==duration*2 && s.RandomState==rng,"Away collection or completion notification failed.");
+                check(s.CollectorReady && s.CollectorNoticePending && s.CollectorCapacity==SurvivalState.CollectorYield(duration) && s.RandomState==rng,"Away collection or completion notification failed.");
                 s.CollectWater();check(s.HomeStorage.Count("raw_water")==raw,"Collected tank while away.");
                 s.AdvanceTime(3,data);check(s.CollectorElapsedHours==duration && s.HomeStorage.Count("raw_water")==raw,"Full collector overflowed into storage.");
                 s.CurrentLocation="home";s.AwayFromHome=false;start=s.hour;s.CollectWater();
-                check(s.hour==start && s.HomeStorage.Count("raw_water")==raw+duration*2 && !s.CollectorReady && !s.CollectorNoticePending,"Collection spent time/lost water/did not reset.");
-                s.CollectWater();check(s.HomeStorage.Count("raw_water")==raw+duration*2,"Double collection duplicated water.");
+                check(s.hour==start && s.HomeStorage.Count("raw_water")==raw+SurvivalState.CollectorYield(duration) && !s.CollectorReady && !s.CollectorNoticePending,"Collection spent time/lost water/did not reset.");
+                s.CollectWater();check(s.HomeStorage.Count("raw_water")==raw+SurvivalState.CollectorYield(duration),"Double collection duplicated water.");
                 check(s.CanStartCollector,"Empty collector could not restart.");
             }
             for(int level=1;level<=3;level++)
             {
                 var s=fresh();s.InstalledFacilities.Add("water_filter");if(level>=2)s.InstalledFacilities.Add("water_filter2");if(level==3)s.InstalledFacilities.Add("water_filter3");
-                s.HomeStorage.Add("raw_water",10);int hour=s.hour,water=s.HomeStorage.Count("water");
+                s.HomeStorage.Add("raw_water",14);int hour=s.hour,water=s.HomeStorage.Count("water");
                 s.Craft("purify_water",data);s.Craft("purify_water",data);
-                check(s.HomeStorage.Count("raw_water")==2 && s.HomeStorage.Count("water")==water+2*(level+1) && s.hour==hour+2,"Purifier yield/loss/time incorrect.");
+                check(s.HomeStorage.Count("raw_water")==2 && s.HomeStorage.Count("water")==water+2*(level+3) && s.hour==hour+2,"Purifier yield/loss/time incorrect.");
                 s.Craft("purify_water",data);check(s.HomeStorage.Count("raw_water")==2,"Purifier spent incomplete batch.");
             }
             var state=fresh();state.StartWaterCollection(2);check(state.CollectorCycleHours==0,"Missing collector allowed collection.");
@@ -61,7 +61,7 @@ namespace VanishingDays.Editor
                 clean();state=fresh();state.InstalledFacilities.AddRange(new[]{"water_collector","water_filter"});state.StartWaterCollection(5);state.AdvanceTime(3,data);store.Save(state);
                 check(store.TryLoad(out state,out _) && state.CollectorCycleHours==5 && state.CollectorElapsedHours==3,"Load reset collector progress.");
                 state.AdvanceTime(2,data);store.Save(state);check(store.TryLoad(out state,out _) && state.CollectorReady && state.CollectorNoticePending,"Load lost full tank/notification.");
-                state.CollectWater();store.Save(state);check(store.TryLoad(out state,out _) && state.HomeStorage.Count("raw_water")==10 && state.CollectorCycleHours==0,"Load duplicated/reset recovered water.");
+                state.CollectWater();store.Save(state);check(store.TryLoad(out state,out _) && state.HomeStorage.Count("raw_water")==SurvivalState.CollectorYield(5) && state.CollectorCycleHours==0,"Load duplicated/reset recovered water.");
                 clean();state=fresh();state.schemaVersion=12;state.InstalledFacilities.AddRange(new[]{"water_collector","water_filter"});state.Thirst=50;state.HydrationHours=5;state.Vitals.Hunger=32;state.Sleepiness=48;state.Backpack.Add("tuna",2);
                 foreach(var location in state.Locations)location.remaining.stacks.RemoveAll(x=>x.id=="chocolate" || x.id=="soda" || x.id=="energy_bar");
                 state.Locations.Find(x=>x.id=="store").remaining.Remove("water",4);File.WriteAllText(path,JsonUtility.ToJson(state));

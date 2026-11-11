@@ -23,7 +23,15 @@ namespace VanishingDays
             for(int i=0;i<count;i++)
             {
                 int index=i; var choice=scene.choices[i];
-                Choice(i,choice.label,state.BrokenPathText(choice.detail,definitions),top+112*i,()=>Apply(state.ChooseBrokenPath(index,definitions)));
+                bool field=choice.action=="field";
+                int walk=definitions.Location("seongnae_bridge").travelHours;
+                string detail=state.BrokenPathText(choice.detail,definitions)+(field?" · "+walk+"시간 이동"+(NightAt(walk)?" · 야간 도착":""):"");
+                Choice(i,choice.label,detail,top+112*i,()=>
+                {
+                    string result=state.ChooseBrokenPath(index,definitions);
+                    if(field && state.BrokenPathFieldWork && state.CurrentLocation!="seongnae_bridge") result+="\n\n"+state.Travel("seongnae_bridge",definitions);
+                    Apply(result);
+                });
             }
         }
 
@@ -56,8 +64,13 @@ namespace VanishingDays
             var method=d.Method(p.Method);
             Label("지원 인력 "+p.Helpers+"명 · 큰 자재는 한 번에 "+state.CarryCapacity+"개"+(state.CarriedLarge>0?" · 지금 "+state.CarriedLarge+"개를 들고 있다":""),48,558,804,34,22,state.CarriedLarge>0?AmberText:Muted);
             // The far side is only ever heard, never shown as a number.
-            if(string.IsNullOrEmpty(message)) RadioText(Blocks(state.FarReport(definitions)),600,250,true,"무전 · 보호소 쪽");
-            else FieldText(message,600,250);
+            if(string.IsNullOrEmpty(message)) RadioText(Blocks(state.FarReport(definitions)),600,256,true,"무전 · 보호소 쪽");
+            else
+            {
+                FieldText(message,600,256);
+                // Long radio exchanges are read on their own page instead of a line at a time.
+                if(Blocks(message).Count>3) { string log=message; Button("전체 읽기",692,556,160,40,()=>{fieldLog=log;page="field-log";Render();}); }
+            }
             Label(method==null?"계획: 아직 정하지 않았다":"계획: "+method.name+" · 시공 "+method.BuildHours(p.Helpers)+"시간",48,866,804,36,25,method==null?Muted:Paper).fontStyle=FontStyle.Bold;
             Label(method==null?"계획 비교에서 방법을 고르면 필요한 자재가 여기에 표시된다.":MaterialLine(method),48,906,804,66,21,Muted);
             for(int i=0;i<d.surveys.Length;i++)
@@ -68,9 +81,20 @@ namespace VanishingDays
             Button("계획 비교 · 방법 정하기",48,1144,390,72,()=>{page="bridge-plan";message="";Render();},state.CanAct,method==null);
             Button("자재 내려놓기"+(state.CarriedLarge>0?" · "+state.CarriedLarge+"개":""),462,1144,390,72,()=>Apply(state.DropAtBridge(definitions)),state.CanAct && state.CarriedLarge>0,state.CarriedLarge>0);
             PrimaryButton(method==null?"시공한다":"시공한다 · "+method.BuildHours(p.Helpers)+"시간",48,1230,804,76,()=>Apply(state.BuildBrokenPath(definitions)),state.CanBuildBrokenPath(definitions));
-            Button("공사 현장으로 · "+definitions.Location("construction_site").travelHours+"시간",48,1320,804,68,()=>RequestDeparture("construction_site"),state.CanAct);
+            int toSite=definitions.Location("construction_site").travelHours;
+            Button("공사 현장으로 · "+toSite+"시간"+(NightAt(toSite)?" · 야간 도착 · 약탈꾼 주의":""),48,1320,804,68,()=>RequestDeparture("construction_site"),state.CanAct);
         }
 
+        string fieldLog="";
+        void FieldLogPage()
+        {
+            Label("3막 · 끊어진 길",48,462,804,36,22,Amber);
+            Label("현장 기록",48,498,804,56,38,Paper).fontStyle=FontStyle.Bold;
+            var blocks=Blocks(fieldLog);
+            if(ScriptBlocks.PresentationFor(blocks)==ScenePresentation.Radio) RadioText(blocks,568,708,true,null,24);
+            else Transcript(blocks,568,708,true,-1,false);
+            PrimaryButton("보행교 화면으로",48,1300,804,76,()=>{page="home";message=fieldLog;Render();});
+        }
         void BrokenPathPlanPage()
         {
             if(!state.BrokenPathFieldWork) { page="home"; Explore(); return; }
@@ -113,7 +137,8 @@ namespace VanishingDays
             Choice(0,"사다리를 든다","큰 자재 · 남은 "+p.Yard.Count("ladder")+"개",890,()=>Apply(state.TakeYardMaterial("ladder",definitions)),state.CanAct && room && p.Yard.Count("ladder")>0);
             Choice(1,"강철 발판을 든다","큰 자재 · 남은 "+p.Yard.Count("steel_plank")+"개",1002,()=>Apply(state.TakeYardMaterial("steel_plank",definitions)),state.CanAct && room && p.Yard.Count("steel_plank")>0);
             Choice(2,"고정 벨트를 챙긴다","일반 소지품 · 남은 "+p.Yard.Count("cargo_belt")+"개 모두",1114,()=>Apply(state.TakeYardMaterial("cargo_belt",definitions)),state.CanAct && p.Yard.Count("cargo_belt")>0);
-            PrimaryButton("보행교로 나른다 · "+definitions.Location("seongnae_bridge").travelHours+"시간",48,1236,804,76,()=>RequestDeparture("seongnae_bridge"),state.CanAct);
+            int toBridge=definitions.Location("seongnae_bridge").travelHours;
+            PrimaryButton("보행교로 나른다 · "+toBridge+"시간"+(NightAt(toBridge)?" · 야간 도착":""),48,1236,804,76,()=>RequestDeparture("seongnae_bridge"),state.CanAct);
             Label("집에 돌아가면 소지품은 집에 보관된다. 큰 자재는 보행교에 내려놓자.",48,1328,804,34,20,Muted);
         }
 
@@ -141,7 +166,7 @@ namespace VanishingDays
             ClickGameButton("동림의 구조를 돕는다");
             Expect(state.BrokenPath.Scene=="path_broken_A" && state.BrokenPath.Helpers==2,"route A call did not open");
             yield return Shot("02-PATH-BROKEN-RADIO");
-            ClickGameButton("보행교로 가 본다");
+            ClickGameButton("보행교로 가 본다"); state.PendingEncounter=null; Records();
             Expect(state.BrokenPathFieldWork && state.IsLocationUnlocked("seongnae_bridge",definitions),"field work did not start");
 
             Go("seongnae_bridge");
@@ -188,7 +213,7 @@ namespace VanishingDays
             ClickGameButton("석현의 중계 철수를");
             Expect(state.BrokenPath.Helpers==0,"route B test should have no helpers, got "+state.BrokenPath.Helpers);
             yield return Shot("13-PATH-BROKEN-B");
-            ClickGameButton("보행교로 가 본다");
+            ClickGameButton("보행교로 가 본다"); state.PendingEncounter=null; Records();
             Go("seongnae_bridge"); ClickGameButton("둑 아래 길을"); ClickGameButton("계획 비교"); ClickGameButton("이 방법으로",2);
             for(int trip=0;trip<2;trip++) { Go("construction_site"); ClickGameButton("사다리를 든다"); Expect(state.CarriedLarge==1 && state.TakeYardMaterial("ladder",definitions).Contains("한 번에"),"solo carry limit"); Go("seongnae_bridge"); ClickGameButton("자재 내려놓기"); }
             Go("home"); Apply(state.Craft("make_rope",definitions),"craft"); Records(); state.Transfer("rope",true,definitions);
@@ -200,7 +225,7 @@ namespace VanishingDays
             ClickGameButton("기록하고 계속");
             Expect(state.BrokenPath.Stage==4 && state.BrokenPath.Outcome.StartsWith("B_") && state.BrokenPath.YeongsukState=="Missing" && state.BrokenPath.SeokhyeonCoop,"route B result wrong");
             Debug.Log("VD_ACT3_UI_OK: core choice, radio call, surveys, plan with unknowns, carry limit, stacking, crafting, build, evacuation, A2 and "+state.BrokenPath.Outcome+" finished and saved.");
-            state.hour=8;
+            state.day=Math.Max(state.day,state.LateReadyDay); state.hour=8;
             Go("shelter"); ClickGameButton("끊긴 연락처를 직접");
             state.day=Math.Max(state.day,state.LateReadyDay); state.hour=8;
             Go("sp_station"); ClickGameButton("수신 기록을 대조");

@@ -11,14 +11,21 @@ namespace VanishingDays
 
     public partial class SurvivalState
     {
-        static readonly (string id,string location,string item,int amount,string text,string reward,int rewardAmount)[] Deliveries=
+        // Each delivery ends with what the person who asked does with it, so a finished request reads as a small scene.
+        static readonly (string id,string location,string item,int amount,string text,string reward,int rewardAmount,string result)[] Deliveries=
         {
-            ("medicine","shelter","antiseptic",1,"영숙 · 배식 준비 중 베인 사람이 있어요. 소독약 한 병을 부탁해요.","water",3),
-            ("cord","shelter","cord",3,"지우 · 귀환 표식을 다시 매야 해요. 끈 세 개를 가져와 주세요.","tuna",2),
-            ("cloth","school","cloth",2,"동림 · 학교 뒤편의 안전한 통로를 천으로 표시하려고 한다.","bandage",1),
-            ("repair","hardware","scrap",2,"철물점 교대 · 빗장 수리에 고철 두 개가 필요합니다.","ramen",2),
-            ("warm_meal","shelter","rice_meal",1,"영숙 · 늦게 돌아온 사람 몫으로 따뜻한 밥 한 그릇을 부탁해요.","water",2),
-            ("first_aid","pharmacy","bandage",1,"약국 연락조 · 오늘 저녁 교대에 쓸 붕대 한 장을 구해 주세요.","tuna",2),
+            ("medicine","shelter","antiseptic",1,"영숙 · 배식 준비 중 베인 사람이 있어요. 소독약 한 병을 부탁해요.","water",3,
+                "영숙에게 소독약을 건넸다. 영숙은 손가락을 천으로 싸맨 사람에게 병부터 내밀었다.\n김영숙: “살았다. 물은 제가 대신 떠 둘게요. 가져가세요.”"),
+            ("cord","shelter","cord",3,"지우 · 귀환 표식을 다시 매야 해요. 끈 세 개를 가져와 주세요.","tuna",2,
+                "지우에게 끈 세 개를 건넸다. 지우는 그 자리에서 매듭을 지어 귀환 표식 세 개를 만들었다.\n한지우: “오늘 저녁 교대부터 이걸로 바꿔 달게요. 고마워요.”"),
+            ("cloth","school","cloth",2,"동림 · 학교 뒤편의 안전한 통로를 천으로 표시하려고 한다.","bandage",1,
+                "동림에게 천 두 장을 건넸다. 동림은 학교 뒤편 기둥에 천을 감아 안전한 통로를 표시했다.\n최동림: “이 정도면 밤에도 보이겠어. 붕대 하나 챙겨 가.”"),
+            ("repair","hardware","scrap",2,"철물점 교대 · 빗장 수리에 고철 두 개가 필요합니다.","ramen",2,
+                "철물점 교대에게 고철 두 개를 건넸다. 잠시 뒤 빗장이 다시 걸리는 소리가 골목 끝까지 울렸다."),
+            ("warm_meal","shelter","rice_meal",1,"영숙 · 늦게 돌아온 사람 몫으로 따뜻한 밥 한 그릇을 부탁해요.","water",2,
+                "영숙에게 밥 한 그릇을 건넸다. 영숙은 화로 옆에 그릇을 놓고 덮개를 씌웠다.\n김영숙: “오늘은 식기 전에 오면 좋겠네요.”"),
+            ("first_aid","pharmacy","bandage",1,"약국 연락조 · 오늘 저녁 교대에 쓸 붕대 한 장을 구해 주세요.","tuna",2,
+                "약국 연락조에게 붕대를 건넸다. 연락조는 저녁 교대 가방 맨 위에 붕대를 넣었다."),
         };
         static readonly (string id,string location,string text,string result)[] Surveys=
         {
@@ -28,6 +35,16 @@ namespace VanishingDays
         };
         public List<CommunityRequest> CommunityRequests=new List<CommunityRequest>();
         public int CommunityRequestDay;
+        // After the first scene in the shelter kitchen, Yeongsuk hands out what the kitchen can spare.
+        public bool ShelterStockShared => LateStoryStarted && (LateStep>0 || HasEnded);
+        // TEMP_BALANCE: what Yeongsuk can spare in a day.
+        public const int ShelterShareItems=3;
+        public bool ShelterSharedToday => LateFlags.Contains("shelter_share:"+day);
+        // The shelter kitchen, the relay room and the staffed SP station are run by people the player works with.
+        public bool IsStaffedPlace => CurrentLocation=="shelter" && ShelterStockShared || CurrentLocation=="relay_room" || CurrentLocation=="sp_station" && (RelayActive || LateFlags.Contains("records_checked"));
+        public int CommunityRequestsDueToday => CommunityRequests?.FindAll(x=>x.day+1==day).Count??0;
+        public bool CanTradeAtShelter(SurvivalDefinitions data) => CanAct && CurrentLocation=="shelter" && CanReceiveCommunityRequests(data) &&
+            !IsNight(data.TEMP_BALANCE) && !LateFlags.Contains("shelter_trade:"+day) && Backpack.Count("tuna")>=2;
         public string CommunityFollowup="";
         public void UpgradeCommunityProgress()
         {
@@ -99,33 +116,36 @@ namespace VanishingDays
             var reward=CommunityReward(request);
             Backpack.Add(reward.item,reward.amount);
             var survey=Array.Find(Surveys,x=>x.id==request.id);
-            string outcome=request.id=="soup_check"?"순찰조가 가리킨 골목 끝에 집이 없다. 셔터에서 몇 걸음 들어간 곳부터 흙바닥이다. 영숙에게 빈 터를 확인한 시각을 남겼다.":
-                survey.result??(data.Location(request.location).name+" 교대에 부탁받은 물품을 건넸다.");
-            outcome+="\n보상 · "+data.Item(reward.item).name+" "+data.Quantity(reward.item,reward.amount)+" · 신뢰 +1";
+            var delivery=Array.Find(Deliveries,x=>x.id==request.id);
+            string outcome=request.id=="soup_check"?SoupHouseOutcome:survey.result??delivery.result??(data.Location(request.location).name+" 교대에 부탁받은 물품을 건넸다.");
             if(request.id=="soup_check")
             {
                 LateFlags.Add("soup_check");
                 EraseLocation(request.location,data);
+                CommunityFollowup="영숙의 답장이 교대 편에 왔다. “12번 나무패는 뒤집힌 채로 둘게요. 다음엔 누가 사흘씩 안 오기 전에, 하루만 비어도 바로 말해 줘요.”";
             }
-            RecordFact("story",outcome);
-            return Report(outcome);
+            // The diary keeps what happened; the reward is shown only on screen.
+            RecordFact("story",request.id=="soup_check"?"철물점 골목 끝까지 들어가 12번의 집이 있던 자리가 빈 흙바닥이 된 것을 확인했다.":outcome.Split('\n')[0]);
+            return Report(outcome+"\n\n보상 · "+data.Item(reward.item).name+" "+data.Quantity(reward.item,reward.amount)+" · 신뢰 +1");
         }
-        public bool CanGuideToShelter(SurvivalDefinitions data) => !IsGameOver && PendingEncounter?.kind=="hungry" &&
-            PendingEncounter.context=="길거리" && CanReceiveCommunityRequests(data) &&
-            (CurrentLocation=="shelter" || CurrentLocation=="hardware");
+        const string SoupHouseOutcome="셔터 앞에서 골목 안쪽으로 서른 걸음쯤 들어갔다. 끝에 있어야 할 집 대신 흙바닥이 드러나 있었다. 문턱도, 담장도, 우편함도 없었다. 바닥에는 작업용 장갑 한 짝만 놓여 있었다.\n\n장갑을 집어 들었다가 제자리에 내려놓았다. 배식소 계단에서 두 손으로 국그릇을 감싸던 모습이 떠올랐다.\n\n영숙에게 보낼 쪽지에 한 줄을 적었다. ‘철물점 골목 끝, 빈 터. 장갑 한 짝.’ 확인한 시각도 함께 적었다.";
+        // Inside the shelter the hungry stranger can simply be walked to Yeongsuk's kitchen.
+        public bool CanGuideToShelter(SurvivalDefinitions data) => !IsGameOver && PendingEncounter?.kind=="hungry" && CanReceiveCommunityRequests(data) &&
+            (CurrentLocation=="shelter" || CurrentLocation=="hardware" && PendingEncounter.context!="건물 안");
         public string GuideToShelter(SurvivalDefinitions data)
         {
             if(!CanGuideToShelter(data)) return "지금 안내할 수 있는 배식소가 없다.";
             string before=PendingEncounter.report;
             PendingEncounter=null;
-            string text="주민회관의 배식 시간과 붐비는 길을 피하는 방법을 전했다. 상대는 표식을 확인한 뒤 길을 비켜 주었다.";
+            string text=CurrentLocation=="shelter"?"상대를 지하 계단 아래 영숙에게 데려갔다. 배식은 끝난 뒤였지만, 영숙은 저녁 교대 몫으로 덜어 둔 국을 한 그릇 떠 주었다. 상대는 그릇을 받아 들고 물품 이야기를 꺼내지 않았다.":
+                "주민회관의 배식 시간과 붐비는 길을 피하는 방법을 전했다. 상대는 표식을 확인한 뒤 길을 비켜 주었다.";
             RecordFact("story",text);
             return EncounterOutcome(before,Report(text),data);
         }
 
         public string TradeAtShelter(SurvivalDefinitions data)
         {
-            if(!CanAct || CurrentLocation!="shelter" || !CanReceiveCommunityRequests(data) || IsNight(data.TEMP_BALANCE) || LateFlags.Contains("shelter_trade:"+day) || !Backpack.Remove("tuna",2)) return "낮에 참치캔 두 개를 가져오면 하루 한 번 교환할 수 있다.";
+            if(!CanTradeAtShelter(data) || !Backpack.Remove("tuna",2)) return "낮에 참치캔 두 개를 가져오면 하루 한 번 교환할 수 있다.";
             Backpack.Add("bandage",1);
             LateFlags.Add("shelter_trade:"+day);
             RecordFact("story","주민회관에서 참치캔 두 개를 붕대 한 장으로 바꿨다.");
@@ -145,7 +165,7 @@ namespace VanishingDays
             }
             place.erasedDay=day;
             place.remaining=new Inventory();
-            RecordFact("story",data.Location(id).name+"이 사라졌다. 지도에 빈 자리와 확인 날짜를 남겼다.");
+            RecordFact("story",Particle(data.Location(id).name,"이/가")+" 사라졌다. 지도에 빈 자리와 확인 날짜를 남겼다.");
         }
         void FinishDeferredErasure(string previous,SurvivalDefinitions data)
         {

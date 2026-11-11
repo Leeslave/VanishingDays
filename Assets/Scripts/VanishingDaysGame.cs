@@ -34,12 +34,12 @@ namespace VanishingDays
         int selectedErasureDay;
         int selectedDiaryDay,selectedMorningDay;
         readonly Dictionary<string,int> transferQuantities=new Dictionary<string,int>();
-        ScrollRect inventoryScroll;
-        float inventoryScrollOffset;
+        ScrollRect inventoryScroll,departureScroll;
+        float inventoryScrollOffset,departureScrollOffset;
         ScrollRect neighborhoodScroll;
         Vector2 neighborhoodOffset;
         bool neighborhoodPositioned;
-        string mapFocusedDiscovery;
+        string mapFocusedDiscovery,mapFocusedTarget;
         int craftTab,craftRenderedTab;
         ScrollRect craftScroll;
         readonly float[] craftOffsets=new float[4];
@@ -237,6 +237,8 @@ namespace VanishingDays
             neighborhoodScroll=null;
             if(inventoryScroll!=null && inventoryScroll.gameObject.activeInHierarchy) inventoryScrollOffset=inventoryScroll.content.anchoredPosition.y;
             inventoryScroll=null;
+            if(departureScroll!=null && departureScroll.gameObject.activeInHierarchy) departureScrollOffset=departureScroll.content.anchoredPosition.y;
+            departureScroll=null;
             Clear();
             if(page=="continue") { ContinuePage(); return; }
             // After an ending there is nothing left to act on, so the action dock and tabs give way to the ending page.
@@ -252,8 +254,9 @@ namespace VanishingDays
             if(confirmNightSearch) { NightSearchConfirmation(); return; }
             if(page!="diaries" && page!="morning")
             {
+                if(state.NextDiary!=null && !string.IsNullOrEmpty(heldResult)) { HeldResultPage(); return; }
                 if(state.NextDiary!=null) { DiaryPage(true); return; }
-                if(state.HasPendingMorning && !MorningWaitsForKitchen) { selectedMorningDay=0; MorningPage(); return; }
+                if(state.HasPendingMorning && !MorningWaits) { inboxOpenedDay=state.day; page="morning"; selectedMorningDay=0; MorningPage(); return; }
             }
             if(state.BrokenPathScenePending) { BrokenPathScenePage(); return; }
             // A story scene starts once the player is at its place on a safe screen, after the day's records.
@@ -291,6 +294,7 @@ namespace VanishingDays
                 case "morning": MorningPage(); break;
                 case "neighbor": NeighborPage(); break;
                 case "bridge-plan": BrokenPathPlanPage(); break;
+                case "field-log": FieldLogPage(); break;
                 case "companion": CompanionPage(); break;
                 case "security": Security(); break;
                 case "journal": Journal(); break;
@@ -313,8 +317,10 @@ namespace VanishingDays
             Box("Header rule",242,34,2,54,Edge);
             Label(state.CalendarDate.ToString("yyyy.MM.dd"),268,28,420,30,21,Muted);
             Box(night?"Night":"Day",268,72,12,12,night?Cold:Amber);
-            var clock=Label(state.hour.ToString("00")+":00  ·  "+(night?"밤":"낮")+"  ·  "+definitions.Location(state.CurrentLocation).name,292,60,460,38,25,Paper); clock.fontStyle=FontStyle.Bold;
-            var menu=Pressable("메뉴",764,16,88,88,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver || state.HasEnded) && !state.HasLifeNotice,Ink,Ink);
+            // An encounter on the way home happens before the door; the header says so instead of "home".
+            string where=state.PendingEncounter?.context=="귀갓길"?"귀갓길":definitions.Location(state.CurrentLocation).name;
+            var clock=Label(state.hour.ToString("00")+":00  ·  "+(night?"밤":"낮")+"  ·  "+where,292,60,460,38,25,Paper); clock.fontStyle=FontStyle.Bold;
+            var menu=Pressable("메뉴",764,16,88,88,()=>{page="menu"; Render();},(state.CanAct || state.IsGameOver || state.HasEnded) && !LifeNoticeBlocks,Ink,Ink);
             for(int i=0;i<3;i++) Box("Menu line",24,26+i*16,i==2?26:40,4,menu.interactable?Paper:Faint,menu.transform);
 
             int cap=state.Vitals.RecoverableMaxHP(definitions.TEMP_BALANCE);
@@ -325,7 +331,7 @@ namespace VanishingDays
             Box("Current HP",48,170,804*(Mathf.Min(state.Vitals.CurrentHP,cap)/(float)state.Vitals.BaseMaxHP),16,Amber);
             Label("정신력 "+state.Vitals.CurrentMental+" / "+state.Vitals.MentalCap,48,198,500,40,26,Paper).fontStyle=FontStyle.Bold;
             // Sleep counts until the 08:00 review, so past 6h it reads as "enough" rather than "16 / 6h".
-            var sleep=Label(state.SleepHours>=6?"수면 충분 · "+state.SleepHours+"h":"수면 "+state.SleepHours+" / 6h",552,204,300,32,21,Muted); sleep.alignment=TextAnchor.UpperRight;
+            var sleep=Label(state.SleepHours>=6?"08시 이후 수면 충분 · "+state.SleepHours+"h":"08시 이후 수면 "+state.SleepHours+" / 6h",452,204,400,32,21,Muted); sleep.alignment=TextAnchor.UpperRight;
             Hatched("Mental blocked",48,244,804,10);
             Box("Mental capacity",48,244,804*(state.Vitals.MentalCap/(float)state.Vitals.BaseMaxMental),10,Track);
             Box("Mental current",48,244,804*(state.Vitals.CurrentMental/(float)state.Vitals.BaseMaxMental),10,Cold);
@@ -346,11 +352,15 @@ namespace VanishingDays
             return chip;
         }
         // Dock (1412-1496) holds water, crafting and the time-advancing action; the tab bar (1508-1600) sits under the thumb.
-        // Cooking can cross 08:00; the inbox waits for the player to leave the kitchen, so the way out has to stay open.
-        bool MorningWaitsForKitchen => state.HasPendingMorning && state.NextDiary==null && (page=="kitchen" || page=="craft");
+        // The inbox opens on a calm main screen. While a fresh result (an encounter outcome, a search) or another page
+        // such as the map or the kitchen is showing, it waits behind a badge, so the way forward stays open.
+        int inboxOpenedDay=-1;
+        bool MorningWaits => state.HasPendingMorning && state.NextDiary==null && page!="morning" && !(page=="home" && string.IsNullOrEmpty(message) && inboxOpenedDay!=state.day);
+        bool LifeNoticeBlocks => state.NextDiary!=null || state.HasPendingMorning && !MorningWaits;
+        void OpenMorningInbox() { page="morning"; selectedMorningDay=0; message=""; Render(); }
         void Dock()
         {
-            bool home=state.CurrentLocation=="home", ready=state.CanAct && (!state.HasLifeNotice || MorningWaitsForKitchen), thirsty=state.NeedsWaterWarning;
+            bool home=state.CurrentLocation=="home", ready=state.CanAct && !LifeNoticeBlocks, thirsty=state.NeedsWaterWarning;
             var water=Pressable("식수 관리",48,1412,204,84,OpenWaterFromDock,ready,thirsty || page=="water" || state.CollectorGuideStep==1?Amber:EmberEdge,thirsty?EmberDim:Raised);
             Label("식수 관리",18,10,180,34,22,ready?AmberText:Faint,water.transform).fontStyle=FontStyle.Bold;
             int carried=state.Backpack.Count("water"), stored=state.HomeStorage.Count("water");
@@ -360,7 +370,7 @@ namespace VanishingDays
             bool night=state.IsNight(definitions.TEMP_BALANCE), main=page=="home";
             bool rest=home && (night || state.NeedsSleepWarning), leave=home?!rest:night || !state.HasSearchWork(state.CurrentLocation,definitions);
             DockButton(home?"잠자기":"지도",264,150,home?page=="sleep":page=="map" || page=="location",main && (home?rest:false),()=>{page=home?"sleep":"map";message="";Render();},ready);
-            DockButton(home?"외출 · 지도":"집으로 돌아간다 · "+definitions.Location(state.CurrentLocation).travelHours+"시간",426,426,home && (page=="map" || page=="location" || page=="departure"),main && leave,()=>{if(home) {page="map";message="";Render();} else RequestDeparture("home");},ready);
+            DockButton(home?"외출 · 지도":"집으로 돌아간다 · "+definitions.Location(state.CurrentLocation).travelHours+"시간"+(NightAt(definitions.Location(state.CurrentLocation).travelHours)?" · 야간":""),426,426,home && (page=="map" || page=="location" || page=="departure"),main && leave,()=>{if(home) {page="map";message="";Render();} else RequestDeparture("home");},ready);
             Box("Tab bar",0,1504,900,96,NavBar); Box("Tab rule",0,1504,900,2,Edge);
             string[] names={"생활","제작","물품","기록"}, ids={"home","craft","inventory","journal"};
             int[] icons={1,5,2,3};
@@ -378,13 +388,13 @@ namespace VanishingDays
         }
         void DockButton(string text,float x,float w,bool active,bool lead,Action click,bool enabled)
         {
-            if(lead) PrimaryButton(text,x,1412,w,84,click,enabled);
-            else Button(text,x,1412,w,84,click,enabled,active);
+            if(lead && enabled) PrimaryButton(text,x,1412,w,84,click,enabled);
+            else Button(text,x,1412,w,84,click,enabled,active && enabled);
         }
         // Full-bleed illustration (384-754, rising behind the header strip) with the place name set into its fog.
-        void Hero(string title,string caption=null,bool cautionCaption=false)
+        void Hero(string title,string caption=null,bool cautionCaption=false,bool street=false)
         {
-            if(survivalArt!=null && state.CurrentLocation=="home") AtlasPicture(0,384,900,370,new UnityEngine.Rect(0,.51f,1,.411f));
+            if(survivalArt!=null && state.CurrentLocation=="home" && !street) AtlasPicture(0,384,900,370,new UnityEngine.Rect(0,.51f,1,.411f));
             else Picture(0,384,900,370);
             FadeToInk(0,374,900,40,true);
             FadeToInk(0,574,900,182);
@@ -392,8 +402,13 @@ namespace VanishingDays
             Label(title,48,caption==null?684:650,804,60,44,Paper).fontStyle=FontStyle.Bold;
             if(caption!=null) Label(caption,48,712,804,34,22,cautionCaption?Amber:new Color32(183,189,182,255));
         }
+        // Set when a scene's last line is reached: choices then appear under the finger that tapped "next".
+        float choiceGuardUntil;
+        void GuardChoices() { if(!Application.isBatchMode) choiceGuardUntil=Time.unscaledTime+.6f; }
+        Action Guarded(Action action) => action==null?null:()=>{ if(Time.unscaledTime>=choiceGuardUntil) action(); };
         void Choice(int index,string title,string detail,float y,Action action,bool enabled=true,Transform parent=null)
         {
+            action=Guarded(action);
             shortcuts[index]=enabled?action:null;
             var rect=(RectTransform)Pressable((index+1).ToString("00")+"  "+title+"\n     "+detail,parent==null?48:0,y,804,94,action,enabled,Edge,Panel,parent).transform;
             int icon=ButtonIcon(title);
@@ -408,11 +423,16 @@ namespace VanishingDays
         void Home()
         {
             Hero("송파구 자취방","집 · 스팸 "+state.HomeStorage.Count("spam")+" · 참치 "+state.HomeStorage.Count("tuna")+" · 쌀 "+definitions.Quantity("rice",state.HomeStorage.Count("rice")));
-            float badgeRight=852;
-            if(state.CompanionPromisePending || state.HasActiveCompanion) badgeRight=HeroBadge("동행 약속",badgeRight,()=>{page="companion";message="";Render();},true,state.CompanionPromiseDue)-12;
-            badgeRight=HeroBadge(state.NeighborMoved?"창가의 수건"+(state.CanCheckTowel(definitions)?" · 오늘":""):"옆집 안부"+(state.NeighborStage==0?" · 첫 인사":""),badgeRight,()=>{state.NeighborIntroductionSeen=true;neighborInvitationPending=false;Save();page="neighbor";message="";Render();},state.CanAct,state.NeighborStage==0 || state.CanCheckTowel(definitions))-12;
+            const float slot=196;
+            float Slot(int i) => 852-i*(slot+12);
             if(state.InstalledFacilities.Count>0 || state.InstalledSecurity.Count>0)
-                HeroBadge("설치 설비",badgeRight,()=>OpenStoryPage("facilities"),state.CanAct,false);
+                HeroBadge("설치 설비",Slot(0),()=>OpenStoryPage("facilities"),state.CanAct,false,slot);
+            // After the move the towel is only worth a badge while it can be seen and has not been checked today.
+            bool towelToday=state.CanCheckTowel(definitions);
+            if(!state.NeighborMoved || towelToday)
+                HeroBadge(state.NeighborMoved?"창가 수건":"옆집 안부",Slot(1),()=>{state.NeighborIntroductionSeen=true;neighborInvitationPending=false;Save();page="neighbor";message="";Render();},state.CanAct,state.NeighborStage==0 || towelToday,slot);
+            if(state.CompanionPromisePending || state.HasActiveCompanion) HeroBadge("동행 약속",Slot(2),()=>{page="companion";message="";Render();},true,state.CompanionPromiseDue,slot);
+            if(MorningWaits) HeroBadge("수신함",Slot(3),OpenMorningInbox,true,true,slot);
             if(state.TutorialActive) TutorialHomeCard();
             else if(ReportText.Contains("[정보 카드]"))
             {
@@ -433,9 +453,9 @@ namespace VanishingDays
             MoreBelow(list,Ink,Muted);
         }
         // A pill set over the illustration's top-right corner; returns its left edge so badges can line up.
-        float HeroBadge(string text,float right,Action click,bool enabled,bool highlighted)
+        float HeroBadge(string text,float right,Action click,bool enabled,bool highlighted,float width=0)
         {
-            float w=text.Length*23+(highlighted?70:48);
+            float w=width>0?width:text.Length*23+(highlighted?70:48);
             var badge=Pressable(text,right-w,474,w,60,click,enabled,new Color32(58,71,68,255),new Color(Ink.r,Ink.g,Ink.b,.86f));
             float x=24;
             if(highlighted) { Box("Notice dot",24,24,12,12,Amber,badge.transform); x=46; }
@@ -447,11 +467,30 @@ namespace VanishingDays
             var location=definitions.Location(state.CurrentLocation);
             if(location.storyOnly) { if(location.id=="supply_site") SupplySitePage(); else if(location.id=="seongnae_bridge") BrokenPathBridgePage(location); else if(location.id=="construction_site") ConstructionSitePage(location); else StoryPlacePage(location); return; }
             Hero(location.name,state.LootSummary(location.id,definitions),true);
-            Paragraph(string.IsNullOrEmpty(message)?location.description:message,776,214,25,true);
-            Choice(0,"주변을 수색한다",state.HasSearchWork(location.id,definitions)?location.searchHours+"시간 · 수색 후 귀가 "+state.HomeArrivalAfterSearch(definitions).ToString("MM.dd HH:mm")+(string.IsNullOrEmpty(state.SearchNightWarning(definitions))?"":" · 야간 주의"):"물자 소진 · 지도에서 다음 목적지를 확인",1010,RequestSearch,state.HasSearchWork(location.id,definitions));
+            if(MorningWaits) HeroBadge("수신함",852,OpenMorningInbox,true,true,196);
+            string sceneHint=state.CurrentBeat(definitions)?.location==location.id && !state.BrokenPathActive?"\n\n"+state.LateHint(definitions):"";
+            Paragraph(string.IsNullOrEmpty(message)?state.Describe(location,definitions)+sceneHint+DaylightReturnNote(location.travelHours):message,776,214,25,true);
+            bool shared=location.id=="shelter" && state.ShelterStockShared;
+            if(shared && state.ShelterSharedToday) Choice(0,"남는 물자를 나눠 받는다","오늘 몫은 이미 받았다 · 내일 다시 들르자",1010,RequestSearch,false);
+            else Choice(0,shared?"남는 물자를 나눠 받는다":"주변을 수색한다",state.HasSearchWork(location.id,definitions)?location.searchHours+"시간 · "+(shared?"영숙에게 묻고 받는다 · ":"")+"수색 후 귀가 "+state.HomeArrivalAfterSearch(definitions).ToString("MM.dd HH:mm")+(string.IsNullOrEmpty(state.SearchNightWarning(definitions))?"":" · 야간 주의"):"물자 소진 · 지도에서 다음 목적지를 확인",1010,RequestSearch,state.HasSearchWork(location.id,definitions));
             Choice(1,"소지 물품을 확인한다","식량과 도구를 정리한다",1122,()=>{page="inventory"; Render();});
-            Choice(2,"집으로 돌아간다",location.travelHours+"시간 · 도착 "+state.CalendarDate.AddHours(state.hour+location.travelHours).ToString("HH:mm")+" · 귀갓길에도 조우할 수 있다",1234,()=>RequestDeparture("home"));
-            if(state.CompanionPromisePending || state.HasActiveCompanion) Button("동행 약속 확인",48,1342,804,48,()=>{page="companion";message="";Render();});
+            Choice(2,"집으로 돌아간다",ReturnDetail(location.travelHours),1234,()=>RequestDeparture("home"));
+            if(state.CompanionPromisePending || state.HasActiveCompanion)
+            {
+                bool due=state.CanMeetCompanion(definitions);
+                Button(due?"동행 약속 · 지금 만날 수 있다":"동행 약속 확인",48,1342,804,48,()=>{page="companion";message="";Render();},true,due);
+            }
+            else if(RequestsHere>0) Button("동네 요청 · 이곳에서 마칠 수 있는 요청 "+RequestsHere+"건",48,1342,804,48,()=>OpenStoryPage("requests"),true,true);
+        }
+        int RequestsHere => state.CanReceiveCommunityRequests(definitions)?state.CommunityRequests.Count(x=>x.location==state.CurrentLocation):0;
+        bool NightAt(int hoursFromNow) { int at=(state.hour+hoursFromNow)%24; return at<definitions.TEMP_BALANCE.dayStarts || at>=definitions.TEMP_BALANCE.nightStarts; }
+        // The way home warns before the player commits: arriving at or after nightfall is when raiders find people.
+        string ReturnDetail(int travelHours) => travelHours+"시간 · 도착 "+state.CalendarDate.AddHours(state.hour+travelHours).ToString("HH:mm")+(NightAt(travelHours)?" · 야간 도착 · 약탈꾼 주의":" · 귀갓길에도 조우할 수 있다");
+        string DaylightReturnNote(int travelHours)
+        {
+            var b=definitions.TEMP_BALANCE; int latest=b.nightStarts-1-travelHours;
+            if(state.IsNight(b)) return "\n\n지금 돌아가면 밤길이다. 약탈꾼에게 발견되면 큰 피해를 입는다.";
+            return "\n\n해 지기 전에 집에 닿으려면 "+latest.ToString("00")+":00까지 출발해야 한다. "+b.nightStarts.ToString("00")+":00 도착부터 야간이다.";
         }
         void RequestSearch()
         {
@@ -470,7 +509,7 @@ namespace VanishingDays
         void Map()
         {
             Label("송파구 일대",48,462,804,60,36,Paper);
-            Label(state.WorldHint(definitions),48,530,804,76,22,Amber);
+            var hint=Label(state.WorldHint(definitions),48,530,804,76,22,Amber); hint.resizeTextForBestFit=true; hint.resizeTextMinSize=15; hint.resizeTextMaxSize=22;
             var places=definitions.locations.Where(x=>state.IsLocationUnlocked(x.id,definitions)).ToArray();
             var viewport=Box("Map viewport",48,610,804,450,Panel); viewport.gameObject.AddComponent<RectMask2D>(); viewport.GetComponent<Image>().raycastTarget=true;
             var world=Rect("Map content",viewport,0,0,1440,900);
@@ -483,46 +522,57 @@ namespace VanishingDays
                 Vector2 point=NeighborhoodMapGraphic.Position(id);
                 Label("소멸 · DAY "+state.Locations.Find(x=>x.id==id).erasedDay,point.x*1440-90,point.y*900+30,180,32,20,Muted,world).alignment=TextAnchor.MiddleCenter;
             }
+            string goal=MapTarget(places);
             foreach(var location in places)
             {
                 Vector2 p=NeighborhoodMapGraphic.Position(location.id); float x=p.x*1440,y=p.y*900;
-                bool current=location.id==state.CurrentLocation, fresh=IsNewPlace(location.id);
+                bool current=location.id==state.CurrentLocation, fresh=IsNewPlace(location.id), aim=location.id==goal;
                 var hit=Box("지도:"+location.id,x-88,y-40,176,112,Color.clear,world); hit.GetComponent<Image>().raycastTarget=true;
                 var button=hit.gameObject.AddComponent<Button>(); button.targetGraphic=hit.GetComponent<Image>(); button.onClick.AddListener(()=>SelectLocation(location.id));
                 Box("Map label",x-88,y+29,176,36,Ink,world);
-                var label=Label(string.IsNullOrEmpty(location.mapLabel)?location.name:location.mapLabel,x-88,y+30,176,34,21,current || fresh?Amber:Paper,world); label.alignment=TextAnchor.MiddleCenter;
+                var label=Label(string.IsNullOrEmpty(location.mapLabel)?location.name:location.mapLabel,x-88,y+30,176,34,21,current || fresh || aim?Amber:Paper,world); label.alignment=TextAnchor.MiddleCenter;
+                // The hint's destination carries its own tag so it can be found at a glance.
+                if(aim) { Box("Goal tag",x-44,y-74,88,28,Amber,world); var mark=Label(state.CurrentBeat(definitions)!=null || state.BrokenPathFieldWork?"이야기":"약속",x-44,y-74,88,28,18,OnAmber,world); mark.alignment=TextAnchor.MiddleCenter; mark.fontStyle=FontStyle.Bold; }
                 if(fresh) { Box("New tag",x-36,y+68,72,28,Amber,world); var tag=Label("NEW",x-36,y+68,72,28,18,OnAmber,world); tag.alignment=TextAnchor.MiddleCenter; tag.fontStyle=FontStyle.Bold; }
             }
             if(!neighborhoodPositioned) { CenterNeighborhood(); neighborhoodPositioned=true; } else world.anchoredPosition=neighborhoodOffset;
-            // A newly discovered place may lie outside the viewport; bring it into view once.
-            string discovery=places.Select(x=>x.id).LastOrDefault(IsNewPlace);
-            if(discovery!=null && discovery!=mapFocusedDiscovery)
-            {
-                mapFocusedDiscovery=discovery;
-                Vector2 p=NeighborhoodMapGraphic.Position(discovery); float sx=p.x*1440+neighborhoodOffset.x, sy=p.y*900-neighborhoodOffset.y;
-                if(sx<88 || sx>804-88 || sy<40 || sy>450-70)
-                {
-                    // Frame both the player and the discovery when they fit together; otherwise favour the discovery.
-                    Vector2 here=NeighborhoodMapGraphic.Position(state.CurrentLocation);
-                    bool together=Mathf.Abs(here.x-p.x)*1440<=804-176 && Mathf.Abs(here.y-p.y)*900<=450-110;
-                    CenterNeighborhood(together?(here+p)/2:p);
-                }
-            }
-            Button("←",48,1074,128,56,()=>PanNeighborhood(190,0));
-            Button("↑",190,1074,128,56,()=>PanNeighborhood(0,-160));
-            Button("↓",332,1074,128,56,()=>PanNeighborhood(0,160));
-            Button("→",474,1074,128,56,()=>PanNeighborhood(-190,0));
-            Button("현재 위치",616,1074,236,56,CenterNeighborhood);
-            Label("지도를 끌거나 화살표로 이동 · 아래에서 장소 선택",48,1140,804,30,20,Muted);
-            ScrollArea("Location records",1180,192,out var content); float row=10;
+            // The place the hint above points at comes first; otherwise a newly discovered place. Each is brought into view once.
+            string target=goal, discovery=places.Select(x=>x.id).LastOrDefault(IsNewPlace);
+            if(target!=null && target!=mapFocusedTarget) { mapFocusedTarget=target; FrameOnMap(target); }
+            else if(discovery!=null && discovery!=mapFocusedDiscovery) { mapFocusedDiscovery=discovery; FrameOnMap(discovery); }
+            Button("←",48,1070,128,52,()=>PanNeighborhood(190,0));
+            Button("↑",190,1070,128,52,()=>PanNeighborhood(0,-160));
+            Button("↓",332,1070,128,52,()=>PanNeighborhood(0,160));
+            Button("→",474,1070,128,52,()=>PanNeighborhood(-190,0));
+            Button("현재 위치",616,1070,236,52,CenterNeighborhood);
+            // Rows are short and the list steps one row at a time, so no row is left half under the edge.
+            const float listH=264, rowH=88;
+            var list=ScrollArea("Location records",1132,listH,out var content); float row=8;
+            list.GetComponent<ScrollRect>().scrollSensitivity=rowH/2;
             foreach(var location in places)
             {
                 bool meeting=!string.IsNullOrEmpty(state.DongrimHint(definitions)) && location.id==state.DongrimMeetingLocation, story=state.BrokenPathFieldWork?location.id=="seongnae_bridge":state.CurrentBeat(definitions)?.location==location.id;
-                Button(location.name+(location.id==state.CurrentLocation?" · 현재":"")+(IsNewPlace(location.id)?" · 새로 발견":"")+(story?" · 이야기":meeting?" · 동림 약속":""),12,row,780,52,()=>SelectLocation(location.id),true,story || meeting || IsNewPlace(location.id),content);
-                Label(state.LootSummary(location.id,definitions),30,row+57,744,32,21,Muted,content);
-                row+=104;
+                Button(location.name+(location.id==state.CurrentLocation?" · 현재":"")+(IsNewPlace(location.id)?" · 새로 발견":"")+(story?" · 이야기":meeting?(state.CompanionPhase?" · 동행 약속":" · 동림 약속"):""),12,row,780,52,()=>SelectLocation(location.id),true,story || meeting || IsNewPlace(location.id),content);
+                Label(state.LootSummary(location.id,definitions),30,row+54,744,28,20,Muted,content);
+                row+=rowH;
             }
-            content.sizeDelta=new Vector2(804,Mathf.Max(192,row));
+            content.sizeDelta=new Vector2(804,Mathf.Max(listH,row));
+        }
+        // Where the map hint sends the player next: the current story scene, else Dongrim's (or the companion) appointment.
+        string MapTarget(LocationDefinition[] places)
+        {
+            string id=state.BrokenPathFieldWork?"seongnae_bridge":state.CurrentBeat(definitions)?.location;
+            if(id==null && !string.IsNullOrEmpty(state.DongrimHint(definitions))) id=state.DongrimMeetingLocation;
+            return id!=null && id!=state.CurrentLocation && places.Any(x=>x.id==id)?id:null;
+        }
+        void FrameOnMap(string id)
+        {
+            Vector2 p=NeighborhoodMapGraphic.Position(id); float sx=p.x*1440+neighborhoodOffset.x, sy=p.y*900-neighborhoodOffset.y;
+            if(sx>=88 && sx<=804-88 && sy>=40 && sy<=450-70) return;
+            // Frame both the player and the place when they fit together; otherwise favour the place.
+            Vector2 here=NeighborhoodMapGraphic.Position(state.CurrentLocation);
+            bool together=Mathf.Abs(here.x-p.x)*1440<=804-176 && Mathf.Abs(here.y-p.y)*900<=450-110;
+            CenterNeighborhood(together?(here+p)/2:p);
         }
         void PanNeighborhood(float x,float y)
         {
@@ -546,10 +596,31 @@ namespace VanishingDays
             var arrival=state.CalendarDate.AddHours(state.hour+hours); bool night=arrival.Hour<definitions.TEMP_BALANCE.dayStarts || arrival.Hour>=definitions.TEMP_BALANCE.nightStarts;
             Label("위치 정보  /  "+(current?"현재 위치":"이동 전 확인"),48,462,804,48,26,Muted);
             Label(location.name,48,532,804,64,42,Paper);
-            Paragraph(location.description,624,230,28);
+            Paragraph(state.Describe(location,definitions),624,230,28);
             Label(current?"지금 이곳에 머무르고 있다.":"이동 "+hours+"시간  ·  "+arrival.ToString("MM.dd HH:mm")+" 도착 예정",48,882,804,48,27,Amber);
             string risk=night?"밤에는 만남이 드물지만 약탈꾼에게 발견되면 위험하다.":"낮에는 길거리나 건물 안에서 다른 생존자와 마주칠 수 있다.";
-            string resources=state.LootSummary(location.id,definitions,true)+(location.storyOnly?"\n낮에 현장을 살피고 접근 여부를 선택한다.":location.id=="home"?"\n요리 · 물자 보관 · 휴식 · 부상 치료":"\n수색 "+location.searchHours+"시간 / 회");
+            bool scene=state.CurrentBeat(definitions)?.location==location.id;
+            var requests=state.CanReceiveCommunityRequests(definitions)?state.CommunityRequests.Where(x=>x.location==location.id).ToList():new System.Collections.Generic.List<CommunityRequest>();
+            var beat=state.CurrentBeat(definitions);
+            string sceneLine="";
+            if(scene)
+            {
+                int arriveDay=state.day+(state.hour+hours)/24;
+                sceneLine="\n이야기 장면 · "+beat.title+(arriveDay<state.LateReadyDay?" · DAY "+state.LateReadyDay+"부터":"")
+                    +(beat.window=="morning"?" · 아침에 시작":beat.window=="evening"?" · 저녁에 시작":beat.daytime?(night?" · 낮에만 시작 · 밤에 도착한다":" · 낮에 시작"):"")
+                    +(beat.choices.Any(x=>x.requires=="meal")?" · 조리한 식사가 있으면 쓸 수 있다":"");
+            }
+            string resources=state.LootSummary(location.id,definitions,true)+sceneLine+(location.storyOnly?(!scene && requests.Count>0?"\n도착해서 부탁받은 일을 확인할 수 있다.":""):location.id=="home"?"\n요리 · 물자 보관 · 휴식 · 부상 치료":"\n수색 "+location.searchHours+"시간 / 회");
+            foreach(var request in requests)
+                resources+="\n동네 요청 · "+request.text+(request.amount>0?" · 필요 "+definitions.Item(request.item).name+" "+request.amount+"개 (소지 "+state.Backpack.Count(request.item)+(state.CurrentLocation=="home"?" · 집 "+state.HomeStorage.Count(request.item):"")+")":"")+" · DAY "+(request.day+1)+"까지";
+            if(!current && location.id!="home")
+            {
+                // The whole outing, not just the way there: arrive, search once, walk back.
+                int back=location.travelHours, work=location.storyOnly || !state.HasSearchWork(location.id,definitions)?0:location.searchHours;
+                var homeAt=arrival.AddHours(work+back); bool lateHome=false;
+                for(int i=0;i<=work+back;i++) { int at=arrival.AddHours(i).Hour; if(at<definitions.TEMP_BALANCE.dayStarts || at>=definitions.TEMP_BALANCE.nightStarts) lateHome=true; }
+                resources+="\n왕복 예상 · "+(work>0?"수색 "+work+"시간 후 ":"바로 ")+"귀가 "+homeAt.ToString("MM.dd HH:mm")+(lateHome?" · 일정이 야간에 걸린다":"");
+            }
             if(!string.IsNullOrEmpty(state.DongrimHint(definitions)) && location.id==state.DongrimMeetingLocation) resources+="\n\n"+state.DongrimHint(definitions);
             Label("잔량·위험 정보",48,938,804,28,18,Muted);
             Paragraph(resources+"\n\n"+risk,974,212,25);
@@ -639,7 +710,7 @@ namespace VanishingDays
                     var meal=definitions.Item(recipe.result);
                     Label("필요 "+Materials(state.CookingIngredients(recipe))+" · "+recipe.hours+"시간\n먹으면 허기 -"+meal.hungerRelief+(meal.healing>0?" · 체력 +"+meal.healing:""),18,y+46,768,58,22,Muted,content);
                     Button("조리한다",18,y+106,366,54,()=>Apply(state.Cook(recipe.id,definitions),"craft"),state.CanCook(recipe,definitions),true,content);
-                    Button("먹는다 · "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),402,y+106,384,54,()=>Apply(state.Eat(recipe.result,definitions),"craft"),state.Backpack.Count(recipe.result)>0 || state.CurrentLocation=="home" && state.HomeStorage.Count(recipe.result)>0,false,content);
+                    Button("먹는다 · "+definitions.TEMP_BALANCE.eatHours+"시간 · 보유 "+(state.HomeStorage.Count(recipe.result)+state.Backpack.Count(recipe.result)),402,y+106,384,54,()=>Apply(state.Eat(recipe.result,definitions),"craft"),state.Backpack.Count(recipe.result)>0 || state.CurrentLocation=="home" && state.HomeStorage.Count(recipe.result)>0,false,content);
                     y+=184;
                 }
             }
@@ -764,7 +835,9 @@ namespace VanishingDays
                 Label(id=="rice"?"g 단위":"개 단위",666,rowY+28,180,34,21,Muted);
                 rowY+=112;
             }
-            float buttonW=(804-16*(actions.Count-1))/(float)Math.Max(1,actions.Count);
+            // At home the row always has four slots, so 챙기기 and 보관 never move between items.
+            int slots=canTransfer?4:Math.Max(1,actions.Count);
+            float buttonW=(804-16*(slots-1))/(float)slots;
             for(int i=0;i<actions.Count;i++) actions[i](48+i*(buttonW+16),rowY,buttonW);
         }
         int TransferQuantity(string id) => transferQuantities.TryGetValue(id,out int quantity)?quantity:1;
@@ -946,21 +1019,21 @@ namespace VanishingDays
             if(state.PendingEncounter.kind=="trader") { StreetTraderPage(); return; }
             // lastReport holds the search/arrival result that triggered this encounter.
             // The question leads so it is visible without scrolling; the interrupted result follows.
-            Hero("누군가 물품을 요구한다"); Paragraph(state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?"+(string.IsNullOrEmpty(state.EncounterBackdrop)?"":"\n\n"+state.EncounterBackdrop),790,188);
-            Choice(0,"순순히 내어준다","소지품 "+definitions.TEMP_BALANCE.dayLoss+"개를 내어준다 · 부상 없음 · 집의 물자는 안전",1000,()=>Apply(state.ResolveEncounter(false,definitions)));
+            Hero("누군가 물품을 요구한다",null,false,state.PendingEncounter.context!="건물 안"); Paragraph(state.PendingEncounter.context+"에서 굶주린 사람과 마주쳤다. 어떻게 대응할까?"+(string.IsNullOrEmpty(state.EncounterBackdrop)?"":"\n\n"+state.EncounterBackdrop),790,188);
+            Choice(0,"순순히 내어준다",state.CarriesLosable(definitions)?"소지품 "+definitions.TEMP_BALANCE.dayLoss+"개를 내어준다 · 부상 없음 · 집의 물자는 안전":"가방이 비어 있다 · 빈 가방을 열어 보인다 · 부상 없음",1000,()=>Apply(state.ResolveEncounter(false,definitions)));
             bool armed=state.HasWeapon(definitions);
             string escape=Mathf.RoundToInt((float)(100*state.EscapeChance(definitions)))+"%";
             Choice(1,armed?"위협한다":"뿌리친다",armed?"탈출 "+escape+" · 실패하면 소지품을 빼앗긴다":"탈출 "+escape+" · 실패하면 부상과 물품 손실",1112,()=>Apply(state.ResolveEncounter(true,definitions)));
             if(armed) Choice(2,"무기로 공격한다","탈출 100% · 상대에게 "+state.AttackInjuryDescription(definitions),1224,()=>Apply(state.AttackHungrySurvivor(definitions)));
             if(state.CanGuideToShelter(definitions))
-                Button("주민회관 배식 시간과 길을 알려 준다",48,1334,804,56,()=>Apply(state.GuideToShelter(definitions)));
+                Button(state.CurrentLocation=="shelter"?"영숙의 배식소로 데려간다":"주민회관 배식 시간과 길을 알려 준다",48,1334,804,56,()=>Apply(state.GuideToShelter(definitions)));
         }
         void SleepPage()
         {
             Label("잠들기 전",48,462,804,60,36,Paper);
             // Sleeping through daylight while rested wastes the only safe search hours; say so before the player commits.
             var b=definitions.TEMP_BALANCE; bool restedByDay=!state.IsNight(b) && !state.NeedsSleepWarning;
-            Paragraph("졸림 "+state.Sleepiness+" / 100\n오늘 수면 "+state.SleepHours+" / 6시간\n\n매일 오전 8시에 지난 하루를 평가한다. 부족한 수면 1시간당 정신력 -3. 6시간 초과 수면은 시간당 정신력 +"+state.SleepMentalRecovery+".\n"+(state.HasFacility("bedroll")?"보강 침구 사용 · 졸림 시간당 -16\n":"")+"\n살해·강탈로 줄어든 정신력 상한은 수면으로 회복되지 않는다. 연속 6시간 수면은 부상 1곳도 회복한다.",542,restedByDay?336:428,26);
+            Paragraph("졸림 "+state.Sleepiness+" / 100\n08시 이후 수면 "+state.SleepHours+" / 6시간 · 다음 평가 오전 8시\n\n매일 오전 8시에 지난 하루를 평가한다. 부족한 수면 1시간당 정신력 -3. 6시간 초과 수면은 시간당 정신력 +"+state.SleepMentalRecovery+".\n"+(state.HasFacility("bedroll")?"보강 침구 사용 · 졸림 시간당 -16\n":"")+"\n살해·강탈로 줄어든 정신력 상한은 수면으로 회복되지 않는다. 연속 6시간 수면은 부상 1곳도 회복한다.",542,restedByDay?336:428,26);
             if(restedByDay) Label("아직 낮이고 졸리지 않다. 지금 자면 수색할 수 있는 낮 시간이 줄어든다. 밤은 "+b.nightStarts.ToString("00")+":00부터.",48,890,804,96,24,Amber);
             int[] lengths={2,6,8};
             for(int i=0;i<lengths.Length;i++)
@@ -1004,10 +1077,24 @@ namespace VanishingDays
             Label(state.LureEndingDue(beat)?definitions.lateStory.lureTitle:beat.title,48,506,804,60,40,Paper).fontStyle=FontStyle.Bold;
             float top=1302-112*(choices.Length-1);
             if(!SceneText(state.LateBeatText(definitions),584,top-4)) return;
+            // Time a choice costs is shown before it is taken; a scene that ends at home says so.
+            string Cost(LateStoryChoice choice)
+            {
+                int hours=Math.Max(choice.hours,beat.endHour-state.hour);
+                return (hours>0?" · "+hours+"시간":"")+(beat.endsAtHome && state.CurrentLocation!="home"?" · 이후 집으로":"");
+            }
+            if(choices.Length==1 && string.IsNullOrEmpty(choices[0].requires))
+            {
+                var only=choices[0]; Action go=Guarded(()=>ShowLateChoice(0));
+                shortcuts[0]=go;
+                PrimaryButton(only.label+"  ›",48,top,804,76,go,state.CanChooseLate(0,definitions));
+                Label(only.detail+Cost(only),48,top+82,804,28,20,Muted).alignment=TextAnchor.MiddleCenter;
+                return;
+            }
             for(int i=0;i<choices.Length;i++)
             {
                 int index=i; var choice=choices[i]; bool open=state.CanChooseLate(i,definitions);
-                string detail=choice.detail+(!open && choice.requires=="trust"?" · 신뢰 "+state.LateTrust+" / "+definitions.lateStory.delegateTrust:!open && choice.requires=="meal"?" · 조리한 식사가 없다":"");
+                string detail=choice.detail+Cost(choice)+(!open && choice.requires=="trust"?" · 신뢰 "+state.LateTrust+" / "+definitions.lateStory.delegateTrust:!open && choice.requires=="meal"?" · 조리한 식사가 없다":"");
                 Choice(i,choice.label,detail,top+112*i,()=>ShowLateChoice(index),open);
             }
         }
@@ -1033,9 +1120,17 @@ namespace VanishingDays
         void StoryPlacePage(LocationDefinition location)
         {
             Hero(location.name,"이야기 장소 · 수색할 물자 없음");
-            Paragraph(string.IsNullOrEmpty(message)?location.description+(state.CurrentBeat(definitions)!=null?"\n\n"+state.LateHint(definitions):""):message,776,214,25,true);
-            Choice(0,"지도를 확인한다","다음 행선지를 정한다",1010,()=>{page="map";message="";Render();});
-            Choice(1,"집으로 돌아간다",location.travelHours+"시간 · 도착 "+state.CalendarDate.AddHours(state.hour+location.travelHours).ToString("HH:mm")+" · 귀갓길에도 조우할 수 있다",1122,()=>RequestDeparture("home"));
+            Paragraph(string.IsNullOrEmpty(message)?state.Describe(location,definitions)+(state.CurrentBeat(definitions)!=null?"\n\n"+state.LateHint(definitions):"")+DaylightReturnNote(location.travelHours):message,776,214,25,true);
+            // A request that is checked by being here is done from the place itself, not only from the request list.
+            var request=state.CanReceiveCommunityRequests(definitions)?state.CommunityRequests.Find(x=>x.location==location.id && x.amount==0):null;
+            int index=0; float y=1010;
+            if(request!=null)
+            {
+                Choice(index++,request.id=="soup_check"?"골목 끝까지 걸어 들어간다":"부탁받은 곳을 확인한다",request.id=="soup_check"?"영숙의 부탁 · 12번의 거처를 확인한다":request.text,y,()=>Apply(state.CompleteCommunityRequest(request,definitions),"home"),state.CanCompleteCommunityRequest(request,definitions));
+                y+=112;
+            }
+            Choice(index++,"지도를 확인한다","다음 행선지를 정한다",y,()=>{page="map";message="";Render();});
+            Choice(index,"집으로 돌아간다",ReturnDetail(location.travelHours),y+112,()=>RequestDeparture("home"));
         }
         void EndingPage()
         {
@@ -1101,7 +1196,7 @@ namespace VanishingDays
             state=SurvivalState.NewGame(difficulty,definitions); state.PlayerNickname=playerNickname; state.Story.OpeningCompleted=true;
             state.BeginTutorial(); neighborInvitationPending=false; vitalsNotice=""; waterWasWarning=sleepWasWarning=hungerWasWarning=starvingWasWarning=false;
             transferQuantities.Clear(); inventoryScrollOffset=0; inventoryScroll=null;
-            neighborhoodPositioned=false; neighborhoodScroll=null; mapFocusedDiscovery=null;
+            neighborhoodPositioned=false; neighborhoodScroll=null; mapFocusedDiscovery=null; mapFocusedTarget=null;
             confirmRestart=false; page="tutorial"; message=""; Save(); Render();
         }
         bool waterWasWarning,sleepWasWarning,hungerWasWarning,starvingWasWarning;
@@ -1113,7 +1208,16 @@ namespace VanishingDays
             if(Starving && !starvingWasWarning) vitalsNotice+=(vitalsNotice.Length>0?"\n":"")+"굶주리고 있다. 매시간 체력이 줄어든다. 당장 먹어야 한다.";
             else if(Hungry && !hungerWasWarning) vitalsNotice+=(vitalsNotice.Length>0?"\n":"")+"배가 고프다. 체력 회복 상한이 낮아졌다. 식사를 하자.";
             waterWasWarning=state.NeedsWaterWarning; sleepWasWarning=state.NeedsSleepWarning; hungerWasWarning=Hungry; starvingWasWarning=Starving;
+            heldResult=state.NextDiary!=null && text!=null && (text.Contains("약탈꾼") || text.Contains("잃은 물품") || text.Contains("부상"))?text:"";
             message=text; page=next; Save(); Render();
+        }
+        // Set when an action both hurt the player and closed a day: the result is shown before the record.
+        string heldResult="";
+        void HeldResultPage()
+        {
+            Label("방금 있었던 일",48,462,804,60,36,Paper);
+            Paragraph(heldResult,542,700,26,true);
+            PrimaryButton("하루 기록 읽기",48,1300,804,76,()=>{heldResult="";Render();});
         }
         bool Save() { try { store.Save(state); return true; } catch(Exception e) { Debug.LogWarning("Save failed: "+e.Message); message="기록을 저장하지 못했다. 저장 공간을 확인해 주세요."; return false; } }
         void Load()
@@ -1155,9 +1259,9 @@ namespace VanishingDays
             ClickGameButton("물을 회수한다 · 0시간");
             ClickGameButton("제작"); ClickGameButton("생활용품");
             state.HydrationHours=0;
-            int water=state.HomeStorage.Count("water");make("purify_water",false);
+            int water=state.HomeStorage.Count("water");state.HomeStorage.Add("raw_water",4);make("purify_water",false);
             if(state.NextDiary!=null)ClickGameButton("읽고 계속");
-            if(state.HomeStorage.Count("raw_water")!=2 || state.HomeStorage.Count("water")!=water+state.PurifiedWaterAmount || craftTab!=2)throw new InvalidOperationException("Water crafting or tab restoration after diary failed.");
+            if(state.HomeStorage.Count("raw_water")!=0 || state.HomeStorage.Count("water")!=water+state.PurifiedWaterAmount || craftTab!=2)throw new InvalidOperationException("Water crafting or tab restoration after diary failed.");
             yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot(Path.Combine(dir,"WATER-SURVIVAL.png"));
             state.Vitals.Hunger=0;make("bedroll",false);make("door1",true);make("workbench2",false);
             if(!state.HasFacility("bedroll") || state.SleepMentalRecovery!=3 || state.DoorLevel!=1)throw new InvalidOperationException("Living utility effects/door upgrade failed.");
@@ -1288,7 +1392,7 @@ namespace VanishingDays
             yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"SLEEP-CHOICES.png"));
             state.Vitals.AdjustMental(-50); ClickGameButton("8시간 잔다");
             if(state.SleepHours!=8 || state.Vitals.CurrentMental!=54 || state.Sleepiness!=0) throw new InvalidOperationException("Eight-hour sleep UI failed.");
-            state.Vitals.Hunger=0; state.Travel("store",definitions,()=>.27); Render(); yield return null;
+            state.Vitals.Hunger=0; state.Travel("store",definitions,()=>.2); Render(); yield return null;
             if(state.PendingEncounter?.kind!="trader") throw new InvalidOperationException("Trader UI encounter gate failed.");
             state.Backpack.Add("tuna",2); Render(); yield return null;
             yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(Path.Combine(dir,"STREET-TRADER.png"));

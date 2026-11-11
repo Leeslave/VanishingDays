@@ -230,7 +230,7 @@ namespace VanishingDays
             if(s.UnlockedLocations==null || s.VisitedLocations==null || s.DongrimMeetings<0 || s.LastDongrimMeetingDay<0 || s.LastDongrimMeetingDay>s.day || (s.Story.HasMetDongrim?s.DongrimMeetings<1:s.DongrimMeetings!=0 || s.LastDongrimMeetingDay!=0)) throw new InvalidDataException("Invalid world progress.");
             foreach(var id in s.UnlockedLocations) if(data.Location(id)==null || s.UnlockedLocations.FindAll(x=>x==id).Count!=1 || data.Location(id).requiresSupplyRumor) throw new InvalidDataException("Invalid unlocked location.");
             foreach(var id in s.VisitedLocations) if(data.Location(id)==null || s.VisitedLocations.FindAll(x=>x==id).Count!=1 || !s.IsLocationUnlocked(id,data) && !s.IsLocationErased(id)) throw new InvalidDataException("Invalid visited location.");
-            if(s.PendingDongrimMeeting && (!s.Story.HasMetDongrim || s.CurrentLocation!=s.DongrimMeetingLocation || s.day<s.NextDongrimDay || s.IsNight(data.TEMP_BALANCE) || s.PendingEncounter!=null || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid Dongrim encounter.");
+            if(s.PendingDongrimMeeting && (!s.Story.HasMetDongrim || s.CurrentLocation!=s.PatrolLocation || s.day<s.NextDongrimDay || s.IsNight(data.TEMP_BALANCE) || s.PendingEncounter!=null || s.HasActiveCrowdIncident || s.IsGameOver)) throw new InvalidDataException("Invalid Dongrim encounter.");
             foreach(var id in s.InstalledSecurity)
             {
                 string required=data.Security(id).requiresSecurity;

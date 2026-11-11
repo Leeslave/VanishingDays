@@ -56,7 +56,7 @@ namespace VanishingDays
             if(id=="collect_water") return CollectWater();
             var recipe=data.crafting.Find(id);
             if(!CanCraft(id,data)) return "집에 보관한 재료와 필요한 설비를 확인하자. 장착한 재료 무기는 먼저 벗어 보관해야 한다.";
-            HomeStorage.Spend(recipe.ingredients); RecordFact("story",recipe.name+" 작업을 시작했다.");
+            HomeStorage.Spend(recipe.ingredients);
             AdvanceTime(recipe.hours,data);
             if(IsGameOver) return Report("제작 도중 쓰러졌다. 사용한 재료로 작업을 마치지 못했다.");
             int amount=id=="purify_water"?PurifiedWaterAmount:recipe.amount;
@@ -66,8 +66,8 @@ namespace VanishingDays
                 if(id=="water_collector") CollectorGuideStep=1;
             }
             else HomeStorage.Add(recipe.result,amount);
-            string text=recipe.facility?recipe.name+"를 집에 설치했다.":data.Item(recipe.result).name+" "+data.Quantity(recipe.result,amount)+"을 만들어 집에 보관했다.";
-            RecordFact("story",text); return Report(text);
+            string text=recipe.facility?Particle(recipe.name,"을/를")+" 집에 설치했다.":Particle(data.Item(recipe.result).name+" "+data.Quantity(recipe.result,amount),"을/를")+" 만들어 집에 보관했다.";
+            RecordFact(recipe.facility?"story":"chore",text); return Report(text);
         }
         public void UpgradeCrafting(SurvivalDefinitions data)
         {

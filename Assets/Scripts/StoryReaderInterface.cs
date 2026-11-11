@@ -152,7 +152,7 @@ namespace VanishingDays
             chapters[5].Add((definitions.lateStory.lureTitle,definitions.lateStory.lureGatherBody));
             foreach(var ending in definitions.lateStory.endings)
                 chapters[6].Add((ending.title,ending.body));
-            chapters[6].Add(("진엔딩 이후",definitions.lateStory.archive));
+            chapters[6].Add(("진엔딩 이후",state.ArchiveText(definitions)));
             return chapters;
         }
 

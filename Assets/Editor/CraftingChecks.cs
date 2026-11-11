@@ -56,8 +56,8 @@ namespace VanishingDays.Editor
             state=fresh();state.HomeStorage.Add("club",1);state.Equip("club",data);state.HomeStorage.Add("cloth",2);state.HomeStorage.Add("tape",1);
             check(!state.CanCraft("wrapped_club",data),"Equipped weapon silently consumed as material.");state.Equip("club",data);state.Craft("wrapped_club",data);
             check(state.HomeStorage.Count("club")==0 && state.HomeStorage.Count("wrapped_club")==1,"Weapon upgrade did not conserve lower-tier weapon.");
-            state=fresh();state.InstalledFacilities.AddRange(new[]{"water_collector","water_filter"});int water=state.HomeStorage.Count("water");state.StartWaterCollection(2);state.AdvanceTime(2,data);state.Craft("collect_water",data);state.Craft("purify_water",data);
-            check(state.HomeStorage.Count("raw_water")==0 && state.HomeStorage.Count("water")==water+2 && state.hour==11,"Collection/purification loop failed.");
+            state=fresh();state.InstalledFacilities.AddRange(new[]{"water_collector","water_filter"});int water=state.HomeStorage.Count("water");state.StartWaterCollection(2);state.AdvanceTime(2,data);state.Craft("collect_water",data);state.HomeStorage.Add("raw_water",4);state.Craft("purify_water",data);
+            check(state.HomeStorage.Count("raw_water")==0 && state.HomeStorage.Count("water")==water+4 && state.hour==11,"Collection/purification loop failed.");
             state=fresh();state.HomeStorage.Add("raw_water",1);state.HomeStorage.Remove("water",8);state.HydrationHours=state.WaterInterval(data)-1;state.AdvanceTime(1,data);
             check(state.Vitals.CurrentHP==490 && state.HomeStorage.Count("raw_water")==1,"Raw water was drunk without purification.");
             state=fresh();state.InstalledFacilities.Add("bedroll");state.Vitals.AdjustMental(-50);state.Sleepiness=100;state.Rest(data,false,8);

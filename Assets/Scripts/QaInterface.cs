@@ -67,28 +67,51 @@ namespace VanishingDays
         void RequestDeparture(string destination)
         {
             selectedLocation=destination;
-            if(state.CurrentLocation=="home" && destination!="home") {selectedInventoryItem=null;page="departure";Render();}
+            if(state.CurrentLocation=="home" && destination!="home") {selectedInventoryItem=null;departureScrollOffset=0;page="departure";Render();}
             else Apply(state.Travel(destination,definitions));
         }
         void DeparturePage()
         {
             Label("외출 준비 · "+definitions.Location(selectedLocation).name,48,462,804,60,34,Paper);
-            Label("집의 물자는 가져가지 않으면 사용할 수 없다. 수량을 조정해 챙기자.",48,534,804,74,24,Muted);
-            ScrollArea("Departure supplies",620,580,out var content);float y=8;
-            foreach(var item in definitions.items.Where(x=>x.id!="burner" && (state.HomeStorage.Count(x.id)>0 || state.Backpack.Count(x.id)>0 || state.Equipment.Contains(x.id))))
+            // What this trip is for comes first: request items for the destination and a meal for the scene waiting there.
+            var needed=new System.Collections.Generic.List<string>(); var wanted=new System.Collections.Generic.HashSet<string>{"water"};
+            if(state.CanReceiveCommunityRequests(definitions))
+                foreach(var request in state.CommunityRequests.Where(x=>x.location==selectedLocation && x.amount>0))
+                {
+                    wanted.Add(request.item);
+                    needed.Add(definitions.Item(request.item).name+" "+request.amount+"개 (소지 "+state.Backpack.Count(request.item)+" · 집 "+state.HomeStorage.Count(request.item)+")");
+                }
+            var beat=state.CurrentBeat(definitions);
+            int trip=definitions.Location(selectedLocation).travelHours, arriveDay=state.day+(state.hour+trip)/24, arriveHour=(state.hour+trip)%24;
+            bool sceneThere=beat?.location==selectedLocation && arriveDay>=state.LateReadyDay;
+            if(sceneThere && beat.daytime && (arriveHour<definitions.TEMP_BALANCE.dayStarts || arriveHour>=definitions.TEMP_BALANCE.nightStarts))
+                needed.Add("이야기 장면은 낮에만 시작된다 · 이대로면 밤에 도착한다");
+            if(sceneThere && beat.choices!=null && beat.choices.Any(x=>x.requires=="meal"))
             {
-                string id=item.id;int pack=state.Backpack.Count(id),home=state.HomeStorage.Count(id);
+                foreach(var meal in new[]{"rice_meal","spam_meal","tuna_meal","ramen_meal"}) wanted.Add(meal);
+                needed.Add("조리한 식사 1개 (이야기 선택지)");
+            }
+            bool short_=needed.Count>0 && state.CommunityRequests.Where(x=>x.location==selectedLocation && x.amount>0).Any(x=>state.Backpack.Count(x.item)<x.amount);
+            Label(needed.Count>0?"이번 행선지에서 쓸 물품 · "+string.Join(" · ",needed):"집의 물자는 가져가지 않으면 사용할 수 없다. 수량을 조정해 챙기자.",48,534,804,74,24,needed.Count>0?Amber:Muted);
+            // +1/-1 re-render the page; the list keeps its scroll so the next tap lands on the same row.
+            var area=ScrollArea("Departure supplies",620,580,out var content);departureScroll=area.GetComponent<UnityEngine.UI.ScrollRect>();float y=8;
+            var rows=definitions.items.Where(x=>x.id!="burner" && (state.HomeStorage.Count(x.id)>0 || state.Backpack.Count(x.id)>0 || state.Equipment.Contains(x.id)))
+                .OrderBy(x=>x.id=="water"?0:wanted.Contains(x.id)?1:2);
+            foreach(var item in rows)
+            {
+                string id=item.id;int pack=state.Backpack.Count(id),home=state.HomeStorage.Count(id);bool worn=state.Equipment.Contains(id);
                 ItemPicture(id,12,y,64,64,content);
-                Label(item.name+(state.Equipment.Contains(id)?" · 착용":""),92,y,400,38,25,Paper,content);
-                Label("소지 "+definitions.Quantity(id,pack)+" · 집 "+definitions.Quantity(id,home),92,y+40,420,34,21,Muted,content);
+                Label(item.name+(worn?" · 착용":""),92,y,400,38,25,Paper,content);
+                Label((worn?"착용 중 · 그대로 가져간다"+(pack+home>0?" · ":""):"")+(pack+home>0 || !worn?"소지 "+definitions.Quantity(id,pack)+" · 집 "+definitions.Quantity(id,home):""),92,y+40,440,34,21,Muted,content);
                 int unit=id=="rice"?100:1;
                 Button("-"+(id=="rice"?"100g":"1"),548,y,110,64,()=>Apply(state.Transfer(id,false,Math.Min(unit,pack),definitions),"departure"),pack>0,false,content);
                 Button("+"+(id=="rice"?"100g":"1"),674,y,110,64,()=>Apply(state.Transfer(id,true,Math.Min(unit,home),definitions),"departure"),home>0,true,content);
                 y+=104;
             }
             content.sizeDelta=new Vector2(804,Mathf.Max(580,y));
+            content.anchoredPosition=new Vector2(0,Mathf.Clamp(departureScrollOffset,0,content.sizeDelta.y-580));
             bool water=state.UnlimitedWater || state.Backpack.Count("water")>0;
-            Label(water?"출발하면 소지품과 착용 장비만 사용할 수 있다.":"주의: 소지한 생수가 없다. 외출 중 식수가 부족할 수 있다.",48,1210,804,66,24,water?Muted:Amber);
+            Label(!water?"주의: 소지한 생수가 없다. 외출 중 식수가 부족할 수 있다.":short_?"주의: 요청 물품이 아직 가방에 다 들어 있지 않다.":"출발하면 소지품과 착용 장비만 사용할 수 있다.",48,1210,804,66,24,water && !short_?Muted:Amber);
             Button("준비 완료 · 출발",48,1300,500,80,()=>Apply(state.Travel(selectedLocation,definitions)),state.CanAct,true);
             Button("취소",570,1300,282,80,()=>{page="location";Render();});
         }

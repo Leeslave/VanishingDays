@@ -90,7 +90,7 @@ namespace VanishingDays
             return "수용 "+(node.occupancy>=3?"가득":node.occupancy>=2?"빠듯":"여유")+
                 " · 물자 "+(node.supplies>=2?"넉넉":node.supplies==1?"부족":"바닥")+
                 " · 교신 "+(RelayHiddenAt(node.id) || node.signal>=2?"정상":node.signal==1?"불안정":"두절")+
-                " · "+RelayStaffName(node.staff);
+                " · 담당 "+RelayStaffName(node.staff);
         }
         static string GoodsName(string goods) => goods=="food"?"식량":goods=="water"?"물":"약품";
         public string RelayDecisionText(RelayDecision action)
@@ -260,7 +260,7 @@ namespace VanishingDays
             if(node.supplies>=(node.shelf?4:3)) return "이 거점에는 물자가 충분하다.";
             if(!SpendRelayGoods(id=="home"?HomeStorage:Backpack,goods)) return GoodsName(goods)+"이 부족하다.";
             RaiseRelaySupplies(node);
-            string text=data.Location(id).name+"에 "+GoodsName(goods)+"을 전달했다.";
+            string text=data.Location(id).name+"에 "+Particle(GoodsName(goods),"을/를")+" 전달했다.";
             RecordFact("story",text);
             return Report(text);
         }
@@ -281,7 +281,7 @@ namespace VanishingDays
             if(item=="relay_filter") node.filter=true;
             else if(item=="relay_antenna") node.antenna=true;
             else node.shelf=true;
-            string text=data.Location(id).name+"에 "+data.Item(item).name+"를 설치했다.";
+            string text=data.Location(id).name+"에 "+Particle(data.Item(item).name,"을/를")+" 설치했다.";
             RecordFact("story",text);
             return Report(text);
         }
@@ -303,6 +303,7 @@ namespace VanishingDays
             if(!RelayActive || Relay.cycleDay>=day) return;
             int age=day-Relay.startDay;
             Relay.cycleDay=day;
+            var booked=Relay.submittedDay==day-1?new List<RelayDecision>():Relay.plan.ToList();
             Relay.plan.Clear();
             if(age==1) RecordFact("story","주파수가 잠시 들뜨고 다시 가라앉았다. 확인해 보니 거점들은 그대로였다.");
             if(age>=2 && !Relay.routeLost)
@@ -324,6 +325,8 @@ namespace VanishingDays
                     if(age%(node.filter?4:2)==0) node.supplies=Math.Max(0,node.supplies-1);
                 }
             }
+            foreach(var pick in booked.Take(RelayDecisionLimit)) if(RelayPlanValid(Relay.plan.Append(pick))) Relay.plan.Add(pick);
+            if(booked.Count>Relay.plan.Count) RecordFact("story","전날 정해 둔 거점 결정 "+(booked.Count-Relay.plan.Count)+"개는 밤사이 상황이 바뀌어 취소됐다.");
             if(!BrokenPath.DonglimAlive && age>=2 && Relay.handovers<2 && !LateFlags.Contains("jiwoo_request_found") && Relay.nodes.Exists(x=>x.staff=="jiwoo"))
                 Relay.hiddenRequest=true;
             bool failed=Relay.nodes.Count(x=>x.signal>=1 && !IsLocationErased(x.id))<2 &&
