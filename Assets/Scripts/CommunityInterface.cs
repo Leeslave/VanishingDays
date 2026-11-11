@@ -171,6 +171,12 @@ namespace VanishingDays
                     foreach(string goods in SurvivalState.RelayGoods)
                         Queue((source=="home"?"집":"주민회관")+"에서 "+RelayGoodsLabel(goods)+" 배분","send",goods,source);
             }
+            // With nothing to do here the list would be a bare box, so it says why and when that changes.
+            if(y<=8)
+                Label(state.CurrentLocation==node.id && state.IsNight(definitions.TEMP_BALANCE)?"밤에는 거점 사람들을 직접 확인할 수 없다. 날이 밝으면 다시 둘러본다.":
+                    state.Relay.submittedDay==state.day?"오늘 방송은 이미 송출했다. 직접 찾아가 확인하거나, 내일 08:00 운영 때 이 거점에 결정을 보낼 수 있다.":
+                    state.RelayDecisionLimit==0?"방송을 멈춘 뒤로는 이 거점에 결정을 보내지 않는다. 직접 찾아가 확인할 수 있다.":
+                    "지금은 이 거점에 할 수 있는 일이 없다. 08:00 이후 라디오나 교신 거점에서 운영하거나, 직접 찾아가 확인한다.",28,24,748,140,24,Muted,content);
             content.sizeDelta=new Vector2(804,Mathf.Max(612,y));
             Button("거점 지도로 돌아가기",48,1304,804,72,()=>OpenStoryPage("relay-map"));
         }

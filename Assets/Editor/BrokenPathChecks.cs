@@ -29,7 +29,14 @@ namespace VanishingDays.Editor
             s.ChooseBrokenPath(index,data); Valid(s,"after "+scene.id+" → "+action);
         }
         // Play every remaining scene with its first choice until the stage closes.
-        static void Close(SurvivalState s) { for(int guard=0;s.BrokenPathScenePending && guard<8;guard++) Choose(s,s.CurrentBrokenPathScene(data).choices[0].action); Check(s.BrokenPath.Stage==4 && !s.BrokenPathActive,"stage did not finish"); }
+        static void Close(SurvivalState s)
+        {
+            int day=s.day, hunger=s.Vitals.Hunger; string place=s.CurrentLocation;
+            for(int guard=0;s.BrokenPathScenePending && guard<8;guard++) Choose(s,s.CurrentBrokenPathScene(data).choices[0].action);
+            Check(s.BrokenPath.Stage==4 && !s.BrokenPathActive,"stage did not finish");
+            // The closing scenes say "이튿날 아침", so the clock opens on the next morning where they end, fed by the shelter.
+            Check(s.IsGameOver || s.hour==8 && s.day>=day && s.day<=day+1 && s.CurrentLocation==(s.BrokenPath.Outcome.StartsWith("A")?"relay_room":"shelter") && s.Vitals.Hunger<=Math.Max(20,hunger) && s.Thirst==0,"act 3 close did not move to the next morning ("+place+" DAY "+day+" → "+s.CurrentLocation+" DAY "+s.day+" "+s.hour+":00)");
+        }
         static SurvivalState Begin(int trust,string side)
         {
             var s=SurvivalState.Act3TestStart(data,trust,"기록자"); Valid(s,"at the test entry");

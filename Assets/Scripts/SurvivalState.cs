@@ -119,7 +119,8 @@ namespace VanishingDays
             uint value=RandomState; value^=value<<13; value^=value>>17; value^=value<<5; RandomState=value==0?1:value;
             return RandomState/((double)uint.MaxValue+1);
         }
-        public void AdvanceTime(int hours,SurvivalDefinitions data,bool resting=false)
+        // A sheltered stretch is spent where others feed the player, so it takes no food or water from the player's stock.
+        public void AdvanceTime(int hours,SurvivalDefinitions data,bool resting=false,bool sheltered=false)
         {
             if(TutorialActive || IsGameOver || HasActiveCrowdIncident || PendingDongrimMeeting || hours<=0) return;
             var b=data.TEMP_BALANCE;
@@ -132,10 +133,13 @@ namespace VanishingDays
                 if(hour==8) { PrepareMorning(data); TickRelayDawn(data); }
                 TickSleep(resting,data);
                 TickWaterCollector();
-                Vitals.Hunger=Math.Min(100,Vitals.Hunger+HungerPerHour(data));
-                UpdateHungerPenalty(b);
-                if(Vitals.Hunger>=b.starvingAt) Vitals.Damage(b.starvationDamage);
-                TickWater(data,resting);
+                if(!sheltered)
+                {
+                    Vitals.Hunger=Math.Min(100,Vitals.Hunger+HungerPerHour(data));
+                    UpdateHungerPenalty(b);
+                    if(Vitals.Hunger>=b.starvingAt) Vitals.Damage(b.starvationDamage);
+                    TickWater(data,resting);
+                }
                 if(resting && !IsGameOver && Vitals.Injuries.Count>0)
                 {
                     InjuryRestProgress++;

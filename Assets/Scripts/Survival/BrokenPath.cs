@@ -159,7 +159,29 @@ namespace VanishingDays
             if(CurrentBeat(data)?.id=="core_choice") AdvanceLateStory(data);
             string summary=p.Outcome=="A1"?"동림을 잃었다. 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 중계실을 떠났다.":p.Outcome=="A2"?"동림과 함께 보호소에서 "+p.RescuedCount+"명을 데려왔다. 석현은 떠났다.":"동림을 "+(p.Outcome=="B_Light"?"데려왔다.":"중상인 채로 데려왔다.")+" 영숙 씨는 돌아오지 않았다.";
             RecordFact("story","「끊어진 길」을 마쳤다. "+summary);
-            return Report("[3막 · 끊어진 길] "+summary);
+            return Report("[3막 · 끊어진 길] "+summary+SpendBrokenPathNight(data));
+        }
+        // The closing scenes end the next morning ("이튿날 아침", "다음 날"), so the clock and place follow them:
+        // the evening is spent with the rescued in the shelter basement, the night is slept there, and the shelter feeds everyone.
+        string SpendBrokenPathNight(SurvivalDefinitions data)
+        {
+            int awake=hour>=8 && hour<22?22-hour:0;
+            AdvanceTime(awake,data,false,true);
+            int sleep=(8-hour+24)%24;
+            AdvanceTime(sleep,data,true,true);
+            if(IsGameOver) return "";
+            string place=BrokenPath.Outcome.StartsWith("A") && !IsLocationErased("relay_room")?"relay_room":"shelter";
+            if(IsLocationErased(place)) return "";
+            if(CurrentLocation!=place)
+            {
+                string previous=CurrentLocation;
+                CurrentLocation=place; AwayFromHome=true;
+                FinishDeferredErasure(previous,data);
+                MarkVisited(place);
+            }
+            Vitals.Hunger=Math.Min(Vitals.Hunger,20); UpdateHungerPenalty(data.TEMP_BALANCE);
+            Thirst=0; HydrationHours=0;
+            return "\n\n[DAY "+day.ToString("00")+" 08:00 · "+data.Location(place).name+"] 구한 사람들과 주민회관 지하에서 밤을 보냈다. 저녁과 아침은 배식소에서 함께 먹었다.";
         }
 
         public string SurveyBrokenPath(string id,SurvivalDefinitions data)
