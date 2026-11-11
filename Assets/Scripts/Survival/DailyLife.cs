@@ -38,7 +38,8 @@ namespace VanishingDays
             {
                 // Only the hour right after the last one continues that sleep; a later nap is its own line.
                 var same=DailyFacts.FindLast(x=>x.day==day && x.kind==kind && x.text==text);
-                if(same!=null && same.hour+same.count==hour) { same.count+=count; return; }
+                bool woke=same!=null && DailyFacts.Skip(DailyFacts.LastIndexOf(same)+1).Any(x=>x.day==day && x.kind=="story");
+                if(same!=null && !woke && same.hour+same.count==hour) { same.count+=count; return; }
             }
             DailyFacts.Add(new DailyFact{day=day,hour=hour,kind=kind,text=text,count=count});
         }

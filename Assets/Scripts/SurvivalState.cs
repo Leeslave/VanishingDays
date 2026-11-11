@@ -182,16 +182,25 @@ namespace VanishingDays
             if(returning && Companion==CompanionStep.Preparation) CompanionHomePrepared=true;
             RecordFact("travel",data.Location(destination).name+"에 도착했다.");
             if(destination=="supply_site") Story.SupplySiteVisited=true;
-            Report(returning?HomeArrivalReport:data.Location(destination).name+"에 도착했다. "+(destination=="pharmacy" && NeighborMoved?"위층 창가에 옆집 노인이 산다. ":"")+(IsStaffedPlace?"아는 얼굴들이 지키고 있는 곳이다.":IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
+            if(returning) lastReport=HomeArrivalReport; else Report(data.Location(destination).name+"에 도착했다. "+(destination=="pharmacy" && NeighborMoved?"위층 창가에 옆집 노인이 산다. ":"")+(IsStaffedPlace?"아는 얼굴들이 지키고 있는 곳이다.":IsNight(data.TEMP_BALANCE)?"밤이다. 만남은 드물지만 발견되면 위험하다.":"낮이다. 다른 생존자와 마주칠 수 있다."));
             if(!TryMeetDongrim(data) && !TryBeginLateStory(data)) CheckEncounter(false,data,random);
             if(returning)
             {
-                if(AwayFromHome && Roll(random)<HomeRaidRisk(data)) Note("집을 비운 사이 누군가 들어왔다. "+LoseSupplies(HomeStorage,data.TEMP_BALANCE.homeLoss,data,"집을 비운 사이 누군가 들어왔다."));
                 AwayFromHome=false;
-                // An encounter on the way home still targets the backpack; unpacking waits until it resolves.
-                if(PendingEncounter==null) StoreCarriedOnReturn(data);
+                // An encounter on the way home still targets the backpack; the door, the break-in and unpacking wait until it resolves.
+                if(PendingEncounter==null) ArriveHome(data,random);
             }
             return lastReport;
+        }
+        // Reaching the door: the arrival is written after anything that happened on the way, then what was found inside.
+        void ArriveHome(SurvivalDefinitions data,Func<double> random)
+        {
+            string shown=lastReport;
+            Note(HomeArrivalReport);
+            string raid="";
+            if(!IsGameOver && Roll(random)<HomeRaidRisk(data)) { Note("집을 비운 사이 누군가 들어왔다. "+LoseSupplies(HomeStorage,data.TEMP_BALANCE.homeLoss,data,"집을 비운 사이 누군가 들어왔다.")); raid=lastReport; }
+            lastReport=(string.IsNullOrEmpty(shown) || shown==HomeArrivalReport?HomeArrivalReport:shown.Contains(HomeArrivalReport)?shown:shown+"\n\n"+HomeArrivalReport)+(raid==""?"":"\n\n"+raid);
+            StoreCarriedOnReturn(data);
         }
         public string Search(SurvivalDefinitions data,Func<double> random=null)
         {
@@ -223,7 +232,7 @@ namespace VanishingDays
             if(encounterRoll>=chance) return;
             // Keep the search/arrival result on screen; the encounter itself is still journaled separately.
             string before=lastReport;
-            if(night) { DamageAndInjure(Math.Max(1,b.nightDamage-Defense(data)),data); string loss=LoseSupplies(Backpack,b.nightLoss,data,(CurrentLocation=="home"?"어두운 귀갓길":"밤의 "+data.Location(CurrentLocation).name)+"에서 전문 약탈꾼에게 습격당했다."); Note("전문 약탈꾼에게 발견됐다. "+(loss.StartsWith("잃은",StringComparison.Ordinal)?"부상을 입고 물품을 빼앗겼다. ":"부상을 입었다. ")+loss); lastReport=before+"\n\n"+lastReport; }
+            if(night) { DamageAndInjure(Math.Max(1,b.nightDamage-Defense(data)),data); string loss=LoseSupplies(Backpack,b.nightLoss,data,(CurrentLocation=="home"?"어두운 귀갓길":"밤의 "+data.Location(CurrentLocation).name)+"에서 전문 약탈꾼에게 습격당했다."); Note("전문 약탈꾼에게 발견됐다. "+(loss.StartsWith("잃은",StringComparison.Ordinal)?"부상을 입고 물품을 빼앗겼다. ":"부상을 입었다. ")+loss); if(before!=HomeArrivalReport) lastReport=before+"\n\n"+lastReport; }
             else { bool trader=!inside && encounterRoll>=chance*.85; PendingEncounter=new Encounter { kind=trader?"trader":"hungry",context=inside?"건물 안":CurrentLocation=="home"?"귀갓길":"길거리",report=before }; Note(trader?"길거리에서 물물교환을 제안하는 행상인을 만났다.":PendingEncounter.context+"에서 굶주린 사람이 물품을 요구한다."); lastReport=before; }
         }
         public string ResolveEncounter(bool resist,SurvivalDefinitions data,Func<double> random=null)
@@ -233,9 +242,9 @@ namespace VanishingDays
             if(!resist && !CarriesLosable(data))
             {
                 RecordFact("story","굶주린 사람에게 빈 가방을 열어 보였다. 상대는 그냥 지나갔다.");
-                return EncounterOutcome(before,Report("빈 가방을 열어 보였다. 내줄 것이 없다는 걸 확인한 상대는 말없이 길을 비켰다."),data);
+                return EncounterOutcome(before,Report("빈 가방을 열어 보였다. 내줄 것이 없다는 걸 확인한 상대는 말없이 길을 비켰다."),data,random);
             }
-            if(!resist) return EncounterOutcome(before,Report("요구에 순순히 응했다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data,"굶주린 사람의 요구에 응했다.")),data);
+            if(!resist) return EncounterOutcome(before,Report("요구에 순순히 응했다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data,"굶주린 사람의 요구에 응했다.")),data,random);
             var weapon=EquippedWeapon(data);
             double escape=EscapeChance(data);
             if(weapon!=null)
@@ -243,22 +252,22 @@ namespace VanishingDays
                 bool escaped=Roll(random)<escape;
                 string text=escaped?"무기를 들어 위협하자 상대가 물러섰다. 그 틈에 빠져나왔다.":"위협이 통하지 않아 소지품을 빼앗겼다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data,"위협이 통하지 않았다.");
                 RecordFact("story",text);
-                return EncounterOutcome(before,Report(text),data);
+                return EncounterOutcome(before,Report(text),data,random);
             }
             if(Roll(random)<escape)
             {
                 RecordFact("story","상대를 다치게 하지 않고 손을 뿌리쳐 벗어났다.");
-                return EncounterOutcome(before,Report("상대의 손을 뿌리치고 벗어났다. 무기는 사용하지 않았고 상대도 다치지 않았다."),data);
+                return EncounterOutcome(before,Report("상대의 손을 뿌리치고 벗어났다. 무기는 사용하지 않았고 상대도 다치지 않았다."),data,random);
             }
             DamageAndInjure(Math.Max(1,data.TEMP_BALANCE.dayDamage-Defense(data)),data);
-            return EncounterOutcome(before,Report("상대를 다치게 하지 않고 빠져나오려다 오히려 부상을 입었다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data,"굶주린 사람을 뿌리치려다 붙잡혔다.")),data);
+            return EncounterOutcome(before,Report("상대를 다치게 하지 않고 빠져나오려다 오히려 부상을 입었다. "+LoseSupplies(Backpack,data.TEMP_BALANCE.dayLoss,data,"굶주린 사람을 뿌리치려다 붙잡혔다.")),data,random);
         }
         // The encounter result leads; the interrupted search/arrival result follows so its loot and discoveries stay readable.
         // An encounter on the way home ends the trip, so whatever is still carried is stored afterwards.
-        string EncounterOutcome(string before,string outcome,SurvivalDefinitions data)
+        string EncounterOutcome(string before,string outcome,SurvivalDefinitions data,Func<double> random=null)
         {
             if(!string.IsNullOrEmpty(before)) lastReport=outcome+"\n\n"+before;
-            if(CurrentLocation=="home") StoreCarriedOnReturn(data);
+            if(CurrentLocation=="home") ArriveHome(data,random);
             return lastReport;
         }
         public double EscapeChance(SurvivalDefinitions data)

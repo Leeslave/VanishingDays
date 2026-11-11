@@ -67,7 +67,7 @@ namespace VanishingDays
         void RelayMapPage()
         {
             if(!state.RelayActive) { Home(); return; }
-            if(!string.IsNullOrEmpty(message) && message.Length>80)
+            if(!string.IsNullOrEmpty(message) && (message.Length>80 || message.Split('\n').Length>2))
             {
                 Label("오늘의 송출 결과",48,462,804,56,38,Paper);
                 Paragraph(message,534,740,24,true);

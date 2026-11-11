@@ -136,9 +136,11 @@ namespace VanishingDays
             // While the bridge is being repaired the queued scene is not the current goal.
             if(BrokenPathFieldWork) return "["+beat.chapter+"] "+data.brokenPath.hint;
             // The date is only worth showing while it is still ahead; a hint that already names the place keeps it once.
-            string lead=(LateReadyDay>day?"DAY "+LateReadyDay+"부터 ":"")+(beat.window=="morning"?"아침에 ":beat.window=="evening"?"저녁에 ":beat.daytime?"낮에 ":"");
+            string when=beat.window=="morning"?"아침에 ":beat.window=="evening"?"저녁에 ":beat.daytime?"낮에 ":"";
+            bool toldWhen=when!="" && beat.hint.StartsWith(when,StringComparison.Ordinal);
+            string lead=(LateReadyDay>day?"DAY "+LateReadyDay+"부터 ":"")+(toldWhen?"":when);
             string place=data.Location(beat.location).name;
-            string text=beat.hint.StartsWith(place,StringComparison.Ordinal)?lead+beat.hint:lead+place+" · "+beat.hint;
+            string text=(toldWhen?beat.hint.Substring(when.Length):beat.hint).StartsWith(place,StringComparison.Ordinal)?lead+beat.hint:lead+place+" · "+beat.hint;
             if(beat.id=="network_trial" && !RelayReviewReady && RelayActive) text+=" (거점 방송 "+Relay.broadcasts+"/2회, 또는 DAY "+(Relay.startDay+3)+"부터)";
             return "["+beat.chapter+"] "+text;
         }
