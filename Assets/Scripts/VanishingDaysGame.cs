@@ -140,6 +140,9 @@ namespace VanishingDays
             float inset=illustrated?iconSize+28:22;
             var label=Label(text,inset,4,w-inset-16,h-8,h<64?22:26,enabled?(accent?AmberText:Paper):Faint,rect);
             label.fontStyle=FontStyle.Bold; label.alignment=text.Contains("\n")?TextAnchor.UpperLeft:TextAnchor.MiddleLeft;
+            // A one-line label that only just overflows beside its icon is set a little smaller instead of breaking onto a second line.
+            float room=w-inset-16;
+            if(!text.Contains("\n") && label.preferredWidth>room) { int fit=Mathf.FloorToInt(label.fontSize*room/label.preferredWidth); if(fit>=20) label.fontSize=fit; }
             if(text.Contains("\n")) label.rectTransform.anchoredPosition=new Vector2(inset,-12);
             else if(w<160 && !illustrated) { label.alignment=TextAnchor.MiddleCenter; label.rectTransform.anchoredPosition=new Vector2(4,-4); label.rectTransform.sizeDelta=new Vector2(w-8,h-8); }
             return button;
@@ -1075,7 +1078,9 @@ namespace VanishingDays
             var beat=state.CurrentBeat(definitions); var choices=state.LateChoices(definitions);
             Label(beat.chapter,48,462,804,40,24,Amber);
             Label(state.LureEndingDue(beat)?definitions.lateStory.lureTitle:beat.title,48,506,804,60,40,Paper).fontStyle=FontStyle.Bold;
-            float top=1302-112*(choices.Length-1);
+            bool single=choices.Length==1 && string.IsNullOrEmpty(choices[0].requires);
+            // A lone call to action carries its note underneath, so it sits higher to keep that note clear of the dock.
+            float top=single?1268:1302-112*(choices.Length-1);
             if(!SceneText(state.LateBeatText(definitions),584,top-4)) return;
             // Time a choice costs is shown before it is taken; a scene that ends at home says so.
             string Cost(LateStoryChoice choice)
@@ -1083,7 +1088,7 @@ namespace VanishingDays
                 int hours=Math.Max(choice.hours,beat.endHour-state.hour);
                 return (hours>0?" · "+hours+"시간":"")+(beat.endsAtHome && state.CurrentLocation!="home"?" · 이후 집으로":"");
             }
-            if(choices.Length==1 && string.IsNullOrEmpty(choices[0].requires))
+            if(single)
             {
                 var only=choices[0]; Action go=Guarded(()=>ShowLateChoice(0));
                 shortcuts[0]=go;

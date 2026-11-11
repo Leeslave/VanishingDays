@@ -217,7 +217,9 @@ namespace VanishingDays
         {
             string speaker=null, id=null; bool dim=false, overAir=false;
             var current=blocks[step];
-            if((current.Kind==ScriptBlockKind.Speech || current.Kind==ScriptBlockKind.Radio) && !current.IsPlayer)
+            // The player's own words over the radio reach someone who is not in the room, so no face is shown for them either.
+            if(current.Kind==ScriptBlockKind.Radio && current.IsPlayer) overAir=true;
+            else if((current.Kind==ScriptBlockKind.Speech || current.Kind==ScriptBlockKind.Radio) && !current.IsPlayer)
             {
                 overAir=current.Kind==ScriptBlockKind.Radio;
                 if(!overAir) { id=ScriptBlocks.PortraitId(current.Speaker); if(id!=null) speaker=current.Speaker; }

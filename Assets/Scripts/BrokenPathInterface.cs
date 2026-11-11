@@ -45,7 +45,13 @@ namespace VanishingDays
         string MaterialLine(BrokenPathMethod method)
         {
             string Part(ItemStack cost) => definitions.Item(cost.id).name+" "+Math.Min(state.BrokenPathHave(cost.id),cost.amount)+"/"+cost.amount;
-            string large=string.Join(" · ",method.large.Select(Part)), small=string.Join(" · ",method.small.Select(Part));
+            // A missing carried item that is made at home names its recipe, so the player knows where it comes from.
+            string Carried(ItemStack cost)
+            {
+                var recipe=state.BrokenPathHave(cost.id)<cost.amount?Array.Find(definitions.crafting.recipes,x=>x.result==cost.id):null;
+                return Part(cost)+(recipe==null?"":" (집에서 제작: "+recipe.name+")");
+            }
+            string large=string.Join(" · ",method.large.Select(Part)), small=string.Join(" · ",method.small.Select(Carried));
             return "보행교에 쌓음  "+large+(small.Length>0?"\n몸에 지님  "+small:"");
         }
 

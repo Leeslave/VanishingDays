@@ -198,7 +198,8 @@ namespace VanishingDays
         void VitalsNotice()
         {
             if(string.IsNullOrEmpty(vitalsNotice)) return;
-            var card=Box("Vitals notification",48,474,804,224,Amber);
+            // Sits just above the dock so the result it follows stays readable at the top of the page.
+            var card=Box("Vitals notification",48,1160,804,224,Amber);
             card.GetComponent<Image>().raycastTarget=true;
             Box("Fill",2,2,800,220,EmberDim,card);
             ArtIcon(state.NeedsWaterWarning?0:state.NeedsSleepWarning?1:7,22,22,88,88,card);
